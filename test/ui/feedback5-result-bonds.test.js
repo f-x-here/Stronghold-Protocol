@@ -26,7 +26,7 @@ const BONDS = JSON.parse(readFileSync(path.join(ROOT, 'data/bonds.json'), 'utf8'
 const rec = (id) => BONDS[id] ?? null;
 
 test('the four hidden-layer bonds are the data\'s noStack ones', () => {
-  assert.deepEqual(Object.keys(BONDS).filter((id) => BONDS[id].noStack).sort(), ['emptyShip', 'maniShip', 'soloShip', 'suntShip']);
+  assert.deepEqual(Object.keys(BONDS).filter((id) => BONDS[id].noStack).sort(), ['emptyShip', 'maniShip', 'soloShip', 'suntShip', 'survivalShip']);
 });
 
 test('result card bonds: a noStack bond shows no number and does not rank by its hidden layers', () => {

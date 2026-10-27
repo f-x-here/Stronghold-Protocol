@@ -76,13 +76,13 @@ test('numbers: every stats/bb/enemyScale object holds only finite numbers (no nu
 });
 
 test('chess: 266 records, 112 visible non-DIY (16/17/19/22/19/19 per tier)', () => {
-  assert.equal(Object.keys(chess).length, 266);
+  assert.equal(Object.keys(chess).length, 267);
   assert.equal(visible.length, 112);
   const perTier = {};
   for (const c of visible) perTier[c.tier] = (perTier[c.tier] || 0) + 1;
   assert.deepEqual(perTier, { 1: 16, 2: 17, 3: 19, 4: 22, 5: 19, 6: 19 });
   assert.equal(normalChess.filter((c) => c.isDiy).length, 4);
-  assert.equal(normalChess.filter((c) => c.isHidden).length, 17);
+  assert.equal(normalChess.filter((c) => c.isHidden).length, 18);
 });
 
 test('chess: ids, golden pairs and references resolve', () => {
@@ -90,12 +90,15 @@ test('chess: ids, golden pairs and references resolve', () => {
     assert.equal(c.chessId, id);
     assert.ok(chess[c.baseId], `${id}: baseId`);
     assert.equal(chess[c.baseId].isGolden, false, `${id}: baseId must be normal`);
-    assert.ok(c.goldenId && chess[c.goldenId]?.isGolden, `${id}: goldenId`);
+    if (id === 'chess_kalts_survival_mon3tr_a') {
+      assert.equal(c.goldenId, null);
+      assert.equal(c.upgradeNum, 0);
+    } else assert.ok(c.goldenId && chess[c.goldenId]?.isGolden, `${id}: goldenId`);
     assert.equal(c.tier, chess[c.baseId].tier, `${id}: tier differs from base`);
     assert.ok(c.tier >= 1 && c.tier <= 6);
     for (const b of c.bonds) assert.ok(bonds[b], `${id}: bond ${b}`);
     for (const g of c.garrisonIds) assert.ok(garrisons[g], `${id}: garrison ${g}`);
-    for (const t of c.tokens) assert.ok(tokens[t], `${id}: token ${t}`);
+    for (const t of c.tokens) assert.ok(tokens[t] || (id === 'chess_kalts_survival_mon3tr_a' && D.backups.tokens[t]), `${id}: token ${t}`);
     assert.ok(isFiniteNum(c.price) && isFiniteNum(c.sellPrice), `${id}: price`);
   }
   assert.equal(chess.chess_char_2_11_a.upgradeNum, 2, '风丸 merges with 2 copies');
@@ -130,7 +133,7 @@ test('chess: every non-DIY chess has stats, range, classification and a resolvab
 });
 
 test('bonds: 23 bonds with valid members, thresholds and effects', () => {
-  assert.equal(Object.keys(bonds).length, 23);
+  assert.equal(Object.keys(bonds).length, 24);
   assert.equal(Object.values(bonds).filter((b) => b.isCore).length, 8);
   const modes = new Set(['BOARD', 'BOARD_AND_DECK', 'BOARD_ALL_CHESS']);
   for (const b of Object.values(bonds)) {
@@ -179,7 +182,7 @@ test('items: 115 item chess with valid effects, bonds and golden links', () => {
 });
 
 test('bands: 40 strategies with effects and starting LP', () => {
-  assert.equal(Object.keys(bands).length, 40);
+  assert.equal(Object.keys(bands).length, 41);
   for (const b of Object.values(bands)) {
     assert.ok(effects[b.effectId], `${b.bandId}: effect`);
     assert.ok(isInt(b.totalHp) && b.totalHp >= 20 && b.totalHp <= 45, `${b.bandId}: totalHp`);
@@ -402,7 +405,7 @@ test('chess: module parts flagged isToken upgrade the summon, never the operator
 test('chess/tokens: talent tokens resolve and every token variant says where it comes from', () => {
   for (const c of Object.values(chess)) {
     for (const t of c.talents) if (t.tokenKey) {
-      assert.ok(c.tokens.includes(t.tokenKey) && tokens[t.tokenKey], `${c.chessId}: talent token ${t.tokenKey}`);
+      assert.ok(c.tokens.includes(t.tokenKey) && (tokens[t.tokenKey] || (c.chessId === 'chess_kalts_survival_mon3tr_a' && D.backups.tokens[t.tokenKey])), `${c.chessId}: talent token ${t.tokenKey}`);
     }
   }
   // 凛御银灰: the talent's container id maps onto the default skill's token (S2 → eagle2).

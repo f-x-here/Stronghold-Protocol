@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { addCivilizationData } from './civilization-data.mjs';
 // tools/build-data.mjs — DATA BUILD PIPELINE (task F1).
 //
 // Reads the official zh_CN client data (Kengxxiao/ArknightsGameData) plus the research JSON in
@@ -3337,6 +3338,7 @@ async function main() {
   // the unit forms rebuild every PRESET chess at every rank (before the annotation: each pass as built)
   const errors = [...validateAll(files), ...passes.flatMap((p) => checkUnitFormParity(p.ctx, p.chess).map((e) => `${e} (potential rank ${p.ctx.potRank})`))];
   errors.push(...attachPotential(passes));
+  if (IS_DEFAULT) { addCivilizationData(files); errors.push(...validateReferences(files)); }
   let total = 0;
   const sizes = {};
   const texts = {};

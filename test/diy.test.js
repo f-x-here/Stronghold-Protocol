@@ -40,7 +40,7 @@ test('diyPool: tier 5 = 15 prototypes + 72 owned 6★, tier 6 = 9 + 72; no prese
   assert.deepEqual(p5, [...RESERVES5, ...ELITES, ...ownedPool]);
   assert.deepEqual(p6, [...ELITES, ...ownedPool]);
   assert.deepEqual([p5.length, p6.length], [87, 81]);
-  const roster = new Set(Object.values(chess).map((c) => c.charId).filter(Boolean));
+  const roster = new Set(Object.values(chess).filter(c => c.chessId !== 'chess_kalts_survival_mon3tr_a').map((c) => c.charId).filter(Boolean));
   for (const id of p5) assert.ok(!roster.has(id) && !COLLAB.includes(id), id);
   assert.deepEqual(diyPool(4, { data: DATA }), [], 'no 自选 slot at tier 4');
   // the kit registry: the 预备干员 run the generic kit (exact for their skills), the nine elites their stand-in kits, the

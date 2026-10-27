@@ -413,7 +413,8 @@ export function ChessDetail({ chess, piece, unit, snapHp, editable, onSell, bond
   const skSlot = sk && Number.isInteger(sk.index) ? `S${sk.index + 1}` : null;
   const nativeTrait = (c.garrisonIds ?? []).map(id => data.lookup('garrisons', id)).find(g => g && !g.operatorTrait);
   const customTraits = Object.values(data.get('garrisons') ?? {}).filter(g => g.operatorTrait?.charId === body.charId && g.operatorTrait.elite === golden);
-  const garrisons = [...(nativeTrait ? [nativeTrait] : []), ...customTraits];
+  const inheritedTraits = (piece?.legacyGarrisonIds ?? []).map(id => data.lookup('garrisons', id)).filter(Boolean);
+  const garrisons = [...(nativeTrait ? [nativeTrait] : []), ...customTraits, ...inheritedTraits];
   const items = Array.isArray(piece?.items) ? piece.items : [];
   // the bonds the unit counts for: its own + a 变形同构体 pairing's (its piece's items; without one: `unitItems` — a
   // teammate's unit's UnitInfo items, a bond popup 同构 row's wearer's)

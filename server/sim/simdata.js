@@ -701,6 +701,7 @@ export class DataSource {
    * than 'display'; PlayerState / the kits' skill summons read them from here).
    */
   getToken(id, ownerChessId = null, ownerLoadout = null) {
+    if (ownerChessId === 'chess_kalts_survival_mon3tr_a') return this.getDiyToken(id, ownerChessId, { charId: 'char_4179_monstr', skillIndex: 2, uniEquipId: null }, ownerLoadout?.potential);
     if (ownerChessId && ownerLoadout && ownerLoadout.diy && typeof ownerLoadout.diy === 'object') return this.getDiyToken(id, ownerChessId, ownerLoadout.diy, ownerLoadout.potential);
     const olo = ownerChessId && ownerLoadout ? resolveLoadout(this.rawChess(ownerChessId), ownerLoadout) : null;
     const ck = id + '|' + (ownerChessId ?? '') + loadoutKey(olo);

@@ -382,3 +382,29 @@ this is applied after minimum/bonus capacity. Voluntary exit emits an authoritat
 The original plugin API cannot change room capacity or the match lifecycle. Installation and update conflict
 checks live in [the source extension](../../extensions/20p-endless/README.md); ordinary plugin content and the
 v0.3.3 version/offer/skin APIs remain available. These rules are custom, not official balance.
+
+
+## 本地策略：文明的存续（2026-10-27）
+
+用户定制规则：凯尔希发起「文明的存续」。首次出售每一基础商店等阶（1–6）的精锐状态干员，
+保存其普通版的全部特质 ID；三连、晋升和直接赠送的精锐均可产生遗产。普通干员出售不触发。
+每阶只记录一次；不继承来源的盟约身份，不保留已出售对象引用。
+
+商店首次达到或超过五阶，通过 acquireChess 发放独立命名的隐藏棋子「存续·Mon3tr」chess_kalts_survival_mon3tr_a，不占刷新位、
+不进入普通刷新池，也不改自选 Mon3tr。复用干员 char_4179_monstr 的现有普通自选培养形态和资源，
+固定三技能，携带调和、协防干员、存续；没有额外精锐形态。未指定的策略生命值沿用默认策略。
+
+遗产保存在 PlayerState.civilization：legacies（tier/chessId/name/garrisonIds）、granted、mon3trUid、inherited。
+获得时特质在每份遗产交给 Mon3tr 时结算一次；策略产生但尚未得到 Mon3tr 的遗产等待发放时结算。
+铃兰等主动重触发机制仍可触发这些获得时特质，使用 Mon3tr 的位置、等级和盟约上下文；
+主动重触发不消耗或重置首次继承标记。已有遗产不因追加、部署、预览或重连重放初始化。
+
+存续在策略 Mon3tr 位于棋盘时激活；战斗中要求其已部署且存活。其余特质沿用原事件和效果，
+仅增加该激活条件。击倒／出售事件本身仍按事件发生时的在场状态结算；退场停止后续效果，
+再次部署恢复，已结算资金和永久层数不回滚。每场计数和上限仍由原特质系统管理。
+
+生成：tools/civilization-data.mjs 在默认版本 build-data 流程中追加记录；安装数据可离线运行
+`node tools/build-civilization.mjs` 重建相同记录，不手改生成 JSON。历史官方版本不追加本策略。
+对局仅存内存，没有磁盘存档；断线重连通过 privateView 重发状态。测试见
+[test/match/civilization.test.js](../../test/match/civilization.test.js) 和
+[test/content/civilization.test.js](../../test/content/civilization.test.js)。

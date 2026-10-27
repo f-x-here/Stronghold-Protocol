@@ -103,6 +103,11 @@ function rollBond(ctx, bond, { anyTier = false } = {}) {
 // buff key → (params[], bandId) → hooks
 
 const K = {};
+K.civilization_survival = () => ({
+  onSold(ctx) { ctx.advanceCivilization(); },
+  onLevelUp(ctx) { ctx.advanceCivilization(); },
+  onPrepStart(ctx) { ctx.advanceCivilization(); },
+});
 
 K.prep_finish_char_bond_add_layer = (ps) => ({
   onPrepEnd(ctx) {

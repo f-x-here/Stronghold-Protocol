@@ -621,7 +621,7 @@ function layerAllowanceOf(p, gd) {
     for (const b of bonds) out.set(b, (out.get(b) || 0) + cap * times);
   };
   for (const u of units) {
-    for (const gid of gd.chess(u.chessId)?.garrisonIds || []) {
+    for (const gid of [...(gd.chess(u.chessId)?.garrisonIds || []), ...(u.chessId === 'chess_kalts_survival_mon3tr_a' ? u.legacyGarrisonIds ?? [] : [])]) {
       const g = gd.garrison(gid);
       if (!g || g.eventType !== 'IN_BATTLE') continue;
       if (g.effectKey !== 'ADD_BOND') { credit(g, 1); continue; }

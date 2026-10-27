@@ -1,5 +1,6 @@
 // Shared DATA.md reference checks, extracted verbatim from build-data (DESIGN §32.5).
 import { statusKey, standInRecord, unitForm } from '../standIn.js';
+import { SURVIVAL_MON3TR } from '../civilization.js';
 /** Recursively find non-finite numbers (NaN/Infinity would silently become null in JSON). */
 function findNonFinite(obj, path, out) {
   if (typeof obj === 'number') { if (!Number.isFinite(obj)) out.push(path); return; }
@@ -22,7 +23,7 @@ export function validateReferences(f, { officialOwnedSkills = true } = {}) {
     if (c.goldenId && !chess[c.goldenId]) err(`chess ${c.chessId}: goldenId missing`);
     for (const b of c.bonds) if (!bonds[b]) err(`chess ${c.chessId}: bond ${b} missing`);
     for (const g of c.garrisonIds) if (!garrisons[g]) err(`chess ${c.chessId}: garrison ${g} missing`);
-    for (const t of c.tokens) if (!tokens[t]) err(`chess ${c.chessId}: token ${t} missing`);
+    for (const t of c.tokens) if (!tokens[t] && !(c.chessId === SURVIVAL_MON3TR && backups?.tokens?.[t])) err(`chess ${c.chessId}: token ${t} missing`);
     for (const t of c.talents || []) if (t.tokenKey && !c.tokens.includes(t.tokenKey)) err(`chess ${c.chessId}: talent token ${t.tokenKey} not in tokens`);
     if (c.isDiy) continue;
     if (!c.stats) err(`chess ${c.chessId}: no stats`);
@@ -240,6 +241,12 @@ function checkData(data, { kitExists = null, vanilla = null, owners = null, vali
   };
   for (const [id, c] of Object.entries(data.chess)) {
     for (const k of ['bonds', 'garrisonIds', 'tokens']) array(c[k], `chess.${id}.${k}`);
+    // Effect-granted hidden singletons have no merge recipe or elite partner.
+    if (c.chessId === id && c.baseId === id && c.isHidden === true && c.isGolden === false
+      && c.goldenId == null && c.upgradeChessId == null && c.upgradeNum === 0) {
+      if (!c.isDiy) checkSkills(c, `chess.${id}`, true, `chess.${id}`);
+      continue;
+    }
     const a = data.chess[c.baseId], b = data.chess[c.goldenId];
     if (c.chessId !== id || (id !== c.baseId && id !== c.goldenId) || !a || !b || a === b || a.chessId !== c.baseId || b.chessId !== c.goldenId
       || a.baseId !== c.baseId || b.baseId !== c.baseId || a.goldenId !== c.goldenId || b.goldenId !== c.goldenId

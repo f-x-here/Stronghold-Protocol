@@ -266,6 +266,7 @@ export class PlayerEconomy {
     piece.items = [];
     this.returnCopies(piece);
     const ev = { piece, gain: this.gd.sellPrice(piece.id) };
+    if (piece.uid === this.civilization?.mon3trUid) ev.survivalActive = loc.area === 'board';
     this.m.dispatch(this, 'onSold', ev);
     const gain = Number.isFinite(ev.gain) ? Math.max(0, Math.trunc(ev.gain)) : 1;
     this.addFunds(gain, { reason: 'sell' });

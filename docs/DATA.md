@@ -1067,3 +1067,10 @@ one child process per version `cs`, at most `maxHosts`, counted apart from the p
 host checks every data file's sha256 against the version's hash input, installs the data with `setData` and the version's
 bounds snapshot, and refuses a match whose `opts.version` is not its data's version. A test journal of such a match carries
 `init.options.version` and replays in a process whose data singleton is that version's (`server/match/testReplay.js`).
+
+
+## 本地文明的存续策略（2026-10-27）
+
+新增凯尔希策略、专属 Mon3tr 和存续盟约；遗产保留普通版特质并复用原触发器，铃兰可重触发获得时效果。
+规则及生成流程见 [文明的存续](design/match.md#本地策略文明的存续2026-10-27)。专属 Mon3tr 是不可合成的隐藏单实例记录，goldenId 为 null；
+默认版本记录数增加为 267 棋子、24 盟约、41 策略。

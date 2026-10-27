@@ -127,7 +127,7 @@ H.SERVER_ADD_BOND = {
     // the text grants 奇迹 once, so a bond already covered by the piece's SERVER_ADD_MULTIPLE_BOND is skipped.
     const rec = piece ? ctx.chessRecord(piece.id) : null;
     const covered = new Set();
-    for (const gid of (rec && Array.isArray(rec.garrisonIds) ? rec.garrisonIds : [])) {
+    for (const gid of (ctx.garrisonIds ? ctx.garrisonIds(piece.uid, garrison.eventType) : rec?.garrisonIds ?? [])) {
       const g = ctx.gd.garrison(gid);
       if (g && g !== garrison && g.effectType === 'SERVER_ADD_MULTIPLE_BOND' && g.eventType === garrison.eventType && g.desc === garrison.desc) for (const b of ids(g.bbStr && g.bbStr.bond)) covered.add(b);
     }
@@ -378,11 +378,11 @@ H.SERVER_SELL_CHESS_GAIN_SPECIAL_GOODS = {
 // re-triggers — through the engine's ctx.triggerGarrisons (dispatcher: same handlers, 投资人 repeat for SERVER_GAIN,
 // per-handler error isolation, shared depth cap)
 
-const garrisonsOfPiece = (ctx, piece) => {
+const garrisonsOfPiece = (ctx, piece, eventType = null) => {
   const rec = piece ? ctx.chessRecord(piece.id) : null;
-  return (rec && Array.isArray(rec.garrisonIds) ? rec.garrisonIds : []).map((gid) => ctx.gd.garrison(gid)).filter(Boolean);
+  return (ctx.garrisonIds ? ctx.garrisonIds(piece.uid, eventType) : rec?.garrisonIds ?? []).map((gid) => ctx.gd.garrison(gid)).filter(Boolean);
 };
-const hasEvent = (ctx, piece, eventType) => garrisonsOfPiece(ctx, piece).some((g) => g.eventType === eventType);
+const hasEvent = (ctx, piece, eventType) => garrisonsOfPiece(ctx, piece, eventType).some((g) => g.eventType === eventType);
 
 /**
  * Run the garrisons of the owned chess `piece` whose eventType is `eventType` once more (ctx.triggerGarrisons).
@@ -443,7 +443,7 @@ function copyFront(ctx, eventType, selfKey) {
   if (!onBoard(self)) return;
   let target = frontPiece(ctx, self);
   for (let i = 0; i < 8 && target && target.kind === 'chess'; i++) {
-    const gs = garrisonsOfPiece(ctx, target).filter((g) => g.eventType === eventType);
+    const gs = garrisonsOfPiece(ctx, target, eventType).filter((g) => g.eventType === eventType);
     if (!gs.length) return;
     if (!gs.every((g) => g.effectKey === selfKey)) break;
     target = frontPiece(ctx, target);

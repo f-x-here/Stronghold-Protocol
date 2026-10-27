@@ -1,3 +1,4 @@
+import { survivalActive } from '../civilization.js';
 // server/match/player/views.js — PlayerState methods: the views — pieceView, effectsView (the effects column: 策略 / 机变 /
 // 悬赏 …) and m.private (privateView).
 // Installed on PlayerState.prototype by server/match/PlayerState.js (a method container: never instantiated; `this` is
@@ -26,6 +27,7 @@ export class PlayerViews {
       // the deploy wheel's preview matches the model that will actually fight
       ...(skinId ? { skin: skinId } : {}),
     };
+    if (p.uid === this.civilization?.mon3trUid) v.legacyGarrisonIds = this.civilization.legacies.flatMap(l => l.garrisonIds);
     if (rc) { v.row = rc[0]; v.col = rc[1]; v.dir = pieceDir(p); }
     return v;
   }
@@ -34,6 +36,11 @@ export class PlayerViews {
     const out = [];
     const band = this.bandId ? this.gd.band(this.bandId) : null;
     if (band) out.push({ id: band.effectId || band.bandId, name: band.effectName || band.name, desc: band.desc || '', iconKind: 'band', iconId: band.iconId || band.bandId });
+    if (this.civilization) for (const legacy of this.civilization.legacies) {
+      out.push({ id: `civilization:${legacy.tier}`, name: `${legacy.tier} · ${legacy.name}`,
+        desc: legacy.garrisonIds.map(id => this.gd.garrison(id)?.desc ?? '').join('；'),
+        iconKind: 'band', iconId: band?.iconId, counter: survivalActive(this) ? 1 : 0 });
+    }
     for (const e of this.effects) {
       if (e.hidden) continue;
       const v = { id: e.id, name: e.name || e.id, desc: e.desc || '', iconKind: e.iconKind || 'choice', iconId: e.iconId || e.id };
@@ -71,6 +78,7 @@ export class PlayerViews {
       lp: this.lp,
       funds: this.funds,
       bandId: this.bandId,
+      ...(this.civilization ? { civilization: structuredClone(this.civilization) } : {}),
       ready: this.ready,
       canReady: this.alive && this.tempEmpty && !this.personalChoice && this.m.phase === PHASE.PREP,
       personalChoice: this.personalChoice ? {

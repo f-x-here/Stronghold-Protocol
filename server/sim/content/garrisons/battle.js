@@ -51,7 +51,7 @@ const AB_FLAG_STATUS = Object.freeze({ 16: 'freeze' });
 
 function garrisonIdsOf(u) {
   const list = u?.def?.raw?.garrisonIds ?? u?.def?.garrisonIds;
-  return Array.isArray(list) ? list : EMPTY;
+  return [...(Array.isArray(list) ? list : EMPTY), ...(u.legacyGarrisonIds ?? EMPTY)];
 }
 
 /** 远牙: the trait its own traits grant also gains on body / substitute switches (act2autochess_gar_event_onstart). */
@@ -95,6 +95,7 @@ export function install(battle) {
     const bb = g.bb || {};
     const cap = S.num(bb.max_add_count_per_battle, 0) > 0 ? S.num(bb.max_add_count_per_battle) : Infinity;
     const it = {
+      guard: grantedBy?.guard ?? (unit.legacyGarrisonIds?.includes(g.garrisonId) ? unit : null),
       unit, g, gid: g.garrisonId, key: g.effectKey, bb, bbStr: g.bbStr || {}, grantedBy,
       cap, capKey: `gar:${g.garrisonId}:${unit.id}`, cnt: 0, k: -1,
     };
@@ -133,6 +134,22 @@ export function install(battle) {
   }
   installHitMods(battle, by);
   installReaders(battle, by);
+  const guarded = all.filter(it => it.guard);
+  if (guarded.length) {
+    const sync = () => {
+      for (const it of guarded) {
+        const active = enabled(it);
+        if (it.guardActive === active) continue;
+        it.guardActive = active;
+        if (!active) { battle.removeBuff(it.unit, `gar:${it.gid}`); it.k = -1; continue; }
+        if (it.key === 'GAIN_BUFF' || it.key === 'attr_common_global_buff') INSTALLERS[it.key](battle, [it]);
+        else if (READERS.has(it.key)) applyReader(battle, it);
+      }
+    };
+    battle.on('deploy', sync);
+    battle.on('death', sync);
+    sync();
+  }
 
   if (grants.length) {
     battle.on('battleStart', () => {
@@ -199,7 +216,10 @@ function amountOf(battle, it) {
   }
 }
 
+function enabled(it) { return !it.guard || S.onField(it.guard); }
+
 function conditionMet(battle, it) {
+  if (!enabled(it) && !it.deathTrigger) return false;
   const ck = it.bbStr.conditionkey;
   const need = S.num(it.bb.check_count, 0);
   if (ck === 'character_same_row') return S.rowMates(battle, it.unit).length >= need;
@@ -272,10 +292,10 @@ const INSTALLERS = {
     battle.on('statusApplied', ({ target, status, entered }) => {
       if (!entered || target?.side !== 'enemy') return;
       for (const it of list) {
-        if (status !== (AB_FLAG_STATUS[S.num(it.bb.check_ab_flag, 16)] ?? 'freeze') || !S.onField(it.unit) || !S.inRange(it.unit, target)) continue;
+        if (!enabled(it) || status !== (AB_FLAG_STATUS[S.num(it.bb.check_ab_flag, 16)] ?? 'freeze') || !S.onField(it.unit) || !S.inRange(it.unit, target)) continue;
         // [ASSUMED] The text only says "数次". One pulse immediately, then two at one-second intervals.
         for (let i = 0; i < 3; i++) battle.after(i, () => {
-          if (S.onField(it.unit)) battle.heal({ source: it.unit, target: it.unit, amount: it.unit.s.maxHp * S.num(it.bb.hp_ratio) });
+          if (enabled(it) && S.onField(it.unit)) battle.heal({ source: it.unit, target: it.unit, amount: it.unit.s.maxHp * S.num(it.bb.hp_ratio) });
         });
       }
     });
@@ -296,6 +316,7 @@ const INSTALLERS = {
       if (!arr || !victim) return;
       for (const it of arr) {
         if (!(victim.side === 'enemy' || (it.allies && victim.side === 'ally' && victim.kind === 'op'))) continue;
+        if (!enabled(it)) continue;
         it.cnt++;
         if (it.cnt % Math.max(1, S.num(it.bb.check_cnt, 1)) === 0) fireGain(battle, it);
       }
@@ -307,7 +328,11 @@ const INSTALLERS = {
     battle.on('death', ({ unit, reason }) => {
       if (reason !== 'killed') return;
       const arr = m.get(unit);
-      if (arr) for (const it of arr) fireGain(battle, it);
+      if (arr) for (const it of arr) {
+        // The death event itself is the final on-field event, including inherited knock-out traits.
+        it.deathTrigger = it.guard === unit;
+        try { fireGain(battle, it); } finally { it.deathTrigger = false; }
+      }
     });
     const swaps = list.filter((it) => /替身/.test(it.g.desc || ''));
     if (!swaps.length) return;
@@ -330,6 +355,7 @@ const INSTALLERS = {
       for (let i = 0; i < list.length; i++) {
         const it = list[i];
         if (!ammoScope(it, unit)) continue;
+        if (!enabled(it)) continue;
         it.cnt++;
         if (it.cnt % Math.max(1, S.num(it.bb.consume_count, 1)) === 0) fireGain(battle, it);
       }
@@ -342,7 +368,7 @@ const INSTALLERS = {
     battle.on('statusApplied', ({ target, status, entered }) => {
       if (!target || !watched.has(status) || !entered || target.side !== 'enemy') return;
       for (const it of list) {
-        if (status !== (AB_FLAG_STATUS[S.num(it.bb.check_ab_flag, 16)] ?? 'freeze')) continue;
+        if (!enabled(it) || status !== (AB_FLAG_STATUS[S.num(it.bb.check_ab_flag, 16)] ?? 'freeze')) continue;
         if (!S.onField(it.unit) || !S.inRange(it.unit, target)) continue;
         if (battle.rng() < S.num(it.bb.prob, 1)) fireGain(battle, it);
       }
@@ -378,7 +404,7 @@ const INSTALLERS = {
       if (ctx.reason !== 'garrison' || !ctx.source) return;
       for (const it of list) {
         const h = it.unit;
-        if (h.ownerId !== ctx.playerId || !S.onField(h)) continue;
+        if (!enabled(it) || h.ownerId !== ctx.playerId || !S.onField(h)) continue;
         if (it.bbStr.range_id && it.bbStr.range_id !== '1-1') continue;
         if (sourceInFront(h, ctx.source, ctx.tile)) ctx.n += S.num(it.bb.extra_cnt, 0);
       }
@@ -436,7 +462,7 @@ function attrMods(bb, k) {
 }
 
 function applyReader(battle, it) {
-  const k = stepsOf(battle, it);
+  const k = enabled(it) ? stepsOf(battle, it) : 0;
   if (k === it.k) return;
   it.k = k;
   const u = it.unit;
@@ -487,7 +513,7 @@ function installReaders(battle, by) {
     battle.on('deploy', ({ unit }) => {
       const arr = m.get(unit);
       if (!arr) return;
-      for (const it of arr) { it.k = stepsOf(battle, it); onstartBuff(battle, it, S.num(it.bb.duration, 0)); }
+      for (const it of arr) { if (!enabled(it)) continue; it.k = stepsOf(battle, it); onstartBuff(battle, it, S.num(it.bb.duration, 0)); }
     });
   }
 }
@@ -536,6 +562,7 @@ function installHitMods(battle, by) {
       if (!arr || !target || target.side !== 'enemy' || !dmg || dmg.type === 'element') return;
       for (let i = 0; i < arr.length; i++) {
         const { it, kind } = arr[i];
+        if (!enabled(it)) continue;
         if (kind === 'tag') {
           // an ATK multiplier: fixed-value DoT ticks are not ATK-based
           if (Array.isArray(dmg.tags) && dmg.tags.includes('dot')) continue;
@@ -548,10 +575,10 @@ function installHitMods(battle, by) {
       }
     });
   }
-  const chaos = new Set((by.get('act1autochess_gar_eff_chaos') ?? EMPTY).map((it) => it.unit));
+  const chaos = byUnit(by.get('act1autochess_gar_eff_chaos') ?? EMPTY);
   if (chaos.size) {
     battle.on('damageCalculate', ({ source, target, dmg }) => {
-      if (!source || !chaos.has(source) || !target || target.side !== 'enemy' || !dmg) return;
+      if (!source || !chaos.get(source)?.some(enabled) || !target || target.side !== 'enemy' || !dmg) return;
       if (dmg.type === 'phys' || dmg.type === 'arts') dmg.type = weaknessType(source, target, dmg);
     }, { priority: WEAKNESS_PRIORITY });
   }

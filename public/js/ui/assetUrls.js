@@ -126,11 +126,13 @@ export function subProfIconUrl(m, chess) {
 
 /** Bond glyph (white; tint in CSS). */
 export function bondIconUrl(m, bondId) {
+  if (bondId === 'survivalShip') return str(obj(obj(m)?.bonds)?.survivalShip) || str(obj(obj(m)?.bonds)?.maniShip);
   return bondId ? str(obj(obj(m)?.bonds)?.[bondId]) : null;
 }
 
 /** Band (strategy) icon. */
 export function bandIconUrl(m, bandId) {
+  if (bandId === 'band_kalts_survival' || bandId === 'char_003_kalts') return str(obj(obj(obj(m)?.chars)?.char_003_kalts)?.avatar);
   return bandId ? str(obj(obj(m)?.bands)?.[bandId]) : null;
 }
 

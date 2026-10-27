@@ -72,10 +72,10 @@ test('bands.js wires both parts: 28 bands with a prep handler, 10 with a battle 
   assert.equal(typeof bands.install, 'function');
   assert.equal(typeof bands.registerMeta, 'function');
   const ids = Object.keys(DATA.bands);
-  assert.equal(ids.length, 40);
+  assert.equal(ids.length, 41);
   const meta = ids.filter((id) => REG.has(`band:${id}`));
   const battle = ids.filter(hasBattlePart);
-  assert.equal(meta.length, 28);
+  assert.equal(meta.length, 29);
   assert.deepEqual(battle.sort(), ['band_amedic', 'band_amiya', 'band_chen', 'band_clementia', 'band_dusk', 'band_emperor', 'band_ermengard', 'band_humus', 'band_ioleta', 'band_mberry', 'band_qalaisa'].sort());
   assert.ok(REG.has('global:bands_ducklord'));
   const none = ids.filter((id) => !meta.includes(id) && !battle.includes(id));
@@ -307,7 +307,7 @@ test('余 文火慢炖: R8 round start — exactly 1 active bond +36 layers, oth
 });
 
 test('余 文火慢炖 adds no layers to a bond without layers (noStack: 独行, 绝技 …) — the owner\'s decision of 2026-10-08', () => {
-  assert.deepEqual(Object.values(DATA.bonds).filter((b) => b.noStack).map((b) => b.name).sort(), ['协防干员', '独行', '绝技', '调和'].sort());
+  assert.deepEqual(Object.values(DATA.bonds).filter((b) => b.noStack).map((b) => b.name).sort(), ['协防干员', '存续', '独行', '绝技', '调和'].sort());
   for (const [bonus, want] of [
     [{ soloShip: 1 }, {}],                          // the one active bond is 独行: nothing at all
     [{ suntShip: 5 }, {}],                          // … or 绝技
@@ -803,6 +803,7 @@ test('外勤医疗: 联防右侧 Touch retains its prepared targeting order', ()
 });
 
 test('coverage: every band is exercised by a test above', () => {
+  cover('band_kalts_survival'); // Lifecycle and real inheritance covered in match/civilization.test.js.
   cover('band_dusk'); // 夕: 画卷 grant (fixed-round test) + 墨色真颜 (battle test)
   const missing = Object.keys(DATA.bands).filter((id) => !COVER.has(id)).sort();
   assert.deepEqual(missing, []);

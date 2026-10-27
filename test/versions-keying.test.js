@@ -26,7 +26,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadData, getData, setData, resetData } from '../server/data.js';
 import { DataSource } from '../server/sim/simdata.js';
-import { KITS, officialKitKey } from '../server/sim/content/index.js';
+import { KITS, officialKitKey, kitOf } from '../server/sim/content/index.js';
 import {
   KIT_CHAR_IDS, KIT_FILES, TIER_KITS, TIER_KIT_KEYS_BY_CHAR, PENDING_KIT_CHARS, PENDING_DIY_KIT_CHARS, GENERIC_KIT_CHARS, KITTED_CHARS,
 } from '../server/sim/content/kits/index.js';
@@ -209,6 +209,11 @@ for (const dir of DIRS) {
     let checked = 0;
     for (const { id, rec, def } of defsOf(data)) {
       if (rec.isDiy || rec.charId == null) continue;
+      if (rec.kitRef) {
+        assert.equal(rec.kitRef, rec.charId, `${id}: explicit strategy kit belongs to its body`);
+        assert.ok(kitOf(def), `${id}: explicit kit resolves`);
+        continue;
+      }
       checked++;
       const key = officialKitKey(def);
       if (!rec.baseId || rec.baseId === id) {
@@ -360,7 +365,7 @@ for (const dir of DIRS) {
 
 test('kits of data/: the new lookup equals the by-id lookup for all 266 records', () => {
   const all = defsOf(dataOf(DEFAULT_DIR));
-  assert.equal(all.length, 266);
+  assert.equal(all.length, 267);
   for (const { id, def } of all) assert.equal(officialKitKey(def), oldKitKey(def), id);
 });
 

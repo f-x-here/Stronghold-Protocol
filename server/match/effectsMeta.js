@@ -1,3 +1,4 @@
+import { dispatchCivilization, pieceGarrisonIds } from './civilization.js';
 // server/match/effectsMeta.js — registry + dispatcher of prep-phase ("SERVER_*") effects (DESIGN §6.4).
 // Full API reference with examples: docs/META.md.
 //
@@ -332,7 +333,7 @@ export class EffectDispatcher {
     const run = (piece, where) => {
       const rec = gd.chess(piece.id);
       if (!rec || !Array.isArray(rec.garrisonIds)) return;
-      for (const gid of rec.garrisonIds) {
+      for (const gid of pieceGarrisonIds(ps, piece, hook === 'onGain' ? 'SERVER_GAIN' : null, hook === 'onSold' && ev?.survivalActive)) {
         const g = gd.garrison(gid);
         if (!g) continue;
         const key = `garrison:${g.effectKey}`;
@@ -369,7 +370,7 @@ export class EffectDispatcher {
    * `asPiece` runs them with another piece as `ctx.source.piece` (特质 "与其相同" copies). 投资人 still multiplies
    * SERVER_GAIN. SERVER_PRICE cannot be triggered. Returns the number of garrison handlers run.
    */
-  triggerGarrisons(ps, piece, eventType, { asPiece = null, triggeredBy = null } = {}) {
+  triggerGarrisons(ps, piece, eventType, { asPiece = null, triggeredBy = null, garrisonIds = null } = {}) {
     const gd = ps.gd || this.m.gd;
     const hook = eventType === 'SERVER_PRICE' ? null : GARRISON_HOOK[eventType];
     const rec = piece && piece.kind === 'chess' ? gd.chess(piece.id) : null;
@@ -378,7 +379,7 @@ export class EffectDispatcher {
     let n = 0;
     this.depth++;
     try {
-      for (const gid of rec.garrisonIds) {
+      for (const gid of garrisonIds ?? pieceGarrisonIds(ps, piece, eventType)) {
         const g = gd.garrison(gid);
         if (!g || g.eventType !== eventType) continue;
         const key = `garrison:${g.effectKey}`;
@@ -536,6 +537,7 @@ export function makeCtx(m, ps, source, hook, ev = null, preview = null) {
     bandId: () => ps.bandId,
     teamMedicGranted: () => m.teamMedicGranted(),
     shopLevel: () => ps.shop.level,
+    advanceCivilization: () => dispatchCivilization(m.dispatcher, ps, hook, ev),
     bond: (id) => (ps.bonds[id] ? { ...ps.bonds[id] } : null),
     bonds: () => Object.fromEntries(Object.entries(ps.bonds).map(([k, v]) => [k, { ...v }])),
     bondActive: (id) => !!(ps.bonds[id] && ps.bonds[id].active),
@@ -569,7 +571,7 @@ export function makeCtx(m, ps, source, hook, ev = null, preview = null) {
       const l = ps.find(uid);
       const rec = l && l.piece.kind === 'chess' ? gd.chess(l.piece.id) : null;
       if (!rec || !Array.isArray(rec.garrisonIds)) return [];
-      return rec.garrisonIds.map((gid) => gd.garrison(gid)).filter(Boolean)
+      return pieceGarrisonIds(ps, l.piece).map((gid) => gd.garrison(gid)).filter(Boolean)
         .map((g) => ({ garrisonId: g.garrisonId, effectKey: g.effectKey, eventType: g.eventType, bb: g.bb || {}, bbStr: g.bbStr || {}, desc: g.desc || '' }));
     },
     stats: () => ({ ...ps.stats }),
@@ -661,6 +663,7 @@ export function makeCtx(m, ps, source, hook, ev = null, preview = null) {
      * SERVER_CHESS_SOLD / SERVER_REFRESH_SHOP). opts.asUid: run them as if they belonged to that piece. Returns the
      * number of handlers run (nesting is depth-capped).
      */
+    garrisonIds: (uid, eventType = null) => { const p = ps.find(uid)?.piece ?? (ev?.piece?.uid === uid ? ev.piece : null); return p ? pieceGarrisonIds(ps, p, eventType, !!ev?.survivalActive) : []; },
     triggerGarrisons: (uid, eventType, opts = {}) => {
       const l = ps.find(uid);
       if (!l || l.piece.kind !== 'chess' || typeof eventType !== 'string') return 0;

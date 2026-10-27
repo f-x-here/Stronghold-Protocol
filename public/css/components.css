@@ -1254,3 +1254,8 @@
   .verpick__badge { font-size: calc(.2 * var(--t)); }
   .verpick__period, .verpick__note { font-size: calc(.21 * var(--t)); }
 }
+
+/* User-authored 存续 badge already contains its white emblem and mint disc. */
+.bond .bond__icon[src*="/bond/survivalShip."] { width: 100%; height: 100%; filter: none; }
+.bond:not(.is-active) .bond__icon[src*="/bond/survivalShip."] { filter: grayscale(1); opacity: .65; }
+.bglyph img[src*="/bond/survivalShip."] { filter: none; }

@@ -193,6 +193,7 @@ export class PlayerBasics {
    * a DIY slot: shared/protocol.js checkLoadout).
    */
   loadoutFor(chessRecord) {
+    if (chessRecord?.chessId === 'chess_kalts_survival_mon3tr_a') return { skillIndex: 2, moduleId: 'none', potential: 6, cultivate: 0 };
     if (this.fieldsStandIn(chessRecord)) {
       return { ...resolveLoadout(null, this.gd.standIn(chessRecord.chessId), (id) => this.gd.standIn(id) || this.gd.chess(id)), potential: null, cultivate: null };
     }

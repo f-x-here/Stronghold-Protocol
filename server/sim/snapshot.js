@@ -38,6 +38,7 @@ export function unitInfo(u) {
     ownerId: u.ownerId ?? null,
     defId: u.defId,
     name: u.name,
+    ...(u.legacyGarrisonIds ? { legacyGarrisonIds: [...u.legacyGarrisonIds] } : {}),
     tier: d.tier ?? (d.rank === 'BOSS' ? 3 : d.rank === 'ELITE' ? 2 : 1),
     golden: !!d.golden,
     // The unit's OWN attack interval in game seconds (units.js `s.interval`: bat × batPct × 100 / aspd, i.e. with the buffs

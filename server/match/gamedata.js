@@ -14,7 +14,8 @@
 import { getConfig, getMode } from '../data.js';
 import { isShopItem } from '../sim/simdata.js';
 import { mergeData } from '../../shared/plugins/dataUtils.js';
-import { standInRecord } from '../../shared/standIn.js';
+import { standInRecord, statusKey } from '../../shared/standIn.js';
+import { SURVIVAL_MON3TR } from '../../shared/civilization.js';
 import { MAX_OFFER_SLOTS } from './player/common.js';
 import { MAX_SEATS } from '../../shared/constants.js';
 
@@ -582,10 +583,11 @@ export class GameData {
     if (!c || !Array.isArray(c.tokens)) return [];
     const out = [];
     for (const tid of c.tokens) {
-      const t = this.token(tid);
+      const t = this.token(tid) ?? (chessId === SURVIVAL_MON3TR ? this.raw.backups?.tokens?.[tid] : null);
       if (!t || t.kind !== 'summon' || t.placeable !== true) continue;
       const vs = t.variants && typeof t.variants === 'object' ? t.variants : {};
-      const v = vs[chessId] ?? vs[String(chessId).replace(/_b$/, '_a')] ?? null;
+      const v = vs[chessId] ?? vs[String(chessId).replace(/_b$/, '_a')]
+        ?? (chessId === SURVIVAL_MON3TR ? vs[`${c.charId}@${statusKey(c.status)}`] : null);
       if (v) {
         const alt = loadout && Number.isInteger(loadout.skillIndex) && v.bySkill ? v.bySkill[loadout.skillIndex] : null;
         const src = Array.isArray(alt?.sources) ? alt.sources : Array.isArray(v.sources) ? v.sources : [];

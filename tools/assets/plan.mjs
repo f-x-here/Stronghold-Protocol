@@ -642,7 +642,7 @@ export function buildPlan({ assets07, ops03, enemies05, maps05, audio, modelsDat
   }
   const items = {};
   for (const [trapId, it] of Object.entries(assets07?.items || {})) items[trapId] = leaf(alt(`item/${trapId}.png`, it.icon?.url, it.icon?.bytes));
-  for (const [id, b] of Object.entries(extraBonds)) if (!bonds[id] && b.iconId) {
+  for (const [id, b] of Object.entries(extraBonds)) if (!bonds[id] && b.iconId && id !== 'survivalShip') {
     bonds[id] = leaf(alt(`bond/${id}.png`, joinUrl(RAW.aa2, `ui/autochess/[uc]autochesscommon/arts/bondicon/${b.iconId.toLowerCase()}.png`)));
   }
   for (const id of Object.keys(extraItems)) if (!items[id]) {
@@ -650,9 +650,12 @@ export function buildPlan({ assets07, ops03, enemies05, maps05, audio, modelsDat
   }
   const bands = {};
   for (const [bandId, b] of Object.entries(assets07?.bands || {})) bands[bandId] = leaf(alt(`band/${bandId}.png`, b.icon?.url, b.icon?.bytes));
-  for (const [bandId, b] of Object.entries(extraBands)) if (!bands[bandId] && b.iconId) {
+  for (const [bandId, b] of Object.entries(extraBands)) if (!bands[bandId] && b.iconId && bandId !== 'band_kalts_survival') {
     bands[bandId] = leaf(alt(`band/${bandId}.png`, joinUrl(RAW.aa2, `ui/autochess/[uc]autochesscommon/arts/bandicon/${b.iconId}.png`)));
   }
+
+  if (extraBonds.survivalShip) bonds.survivalShip = { alts: [{ rel: 'bond/survivalShip.png', urls: [], kind: 'png' }, ...(bonds.maniShip?.alts ?? [])] };
+  if (extraBands.band_kalts_survival && chars.char_003_kalts) bands.band_kalts_survival = chars.char_003_kalts.avatar;
 
   // --- professions ----------------------------------------------------------
   const prof = { icon: {}, large: {}, battlecard: {}, sub: {} };

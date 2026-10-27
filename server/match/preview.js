@@ -20,7 +20,7 @@ export function previewPlayer(ps, board = ps.board) {
 // mutation APIs. Returned objects and source metadata are copied; teammates/player receive the same restricted view.
 const READS = new Set(['funds', 'lp', 'alive', 'bandId', 'teamMedicGranted', 'shopLevel', 'bond', 'bonds',
   'bondActive', 'bondCount', 'layers', 'board', 'hand', 'temp', 'piece', 'pieceAt', 'chessRecord', 'pieceBonds',
-  'garrisonsOf', 'stats', 'roundStats', 'shopSlots', 'counter', 'pieceCounter', 'effect', 'rollChess', 'rollItem', 'rollPool',
+  'garrisonIds', 'garrisonsOf', 'stats', 'roundStats', 'shopSlots', 'counter', 'pieceCounter', 'effect', 'rollChess', 'rollItem', 'rollPool',
   'seedFor']);
 const NOOP = () => undefined;
 

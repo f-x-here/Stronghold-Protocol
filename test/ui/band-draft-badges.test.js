@@ -23,7 +23,7 @@ function record(seed, { bandId = 'band_amiya', victory = true, difficulty = 'HAR
 
 test('every official strategy needs 3 clears for its badge (data/bands.json victorCount, from activity_table)', () => {
   const list = Object.values(BANDS);
-  assert.equal(list.length, 40);
+  assert.equal(list.length, 41);
   assert.ok(list.every((b) => b.victorCount === 3), 'victorCount 3 for all 40');
 });
 
