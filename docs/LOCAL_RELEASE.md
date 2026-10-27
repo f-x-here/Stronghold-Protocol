@@ -56,3 +56,5 @@ Windows 便携包脚本 `node scripts/make-windows-bundle.mjs` 也默认写入 `
   [xinhai-ai 的实现](https://github.com/xinhai-ai/Stronghold-Protocol/blob/3327c49/docs/research/08-skins.json)，
   运行时沿用当前 v0.3.3 的 charId 选择键及外观插件机制。每个插件低于原有 200 MiB 限制，不提高上游限制。
   `npm run package` / `package:lite` 自动重建并携带这两个特定插件，其他服务器私有插件仍排除；素材与官方美术不提交到 Git。
+
+Windows 优先使用系统 bsdtar 处理长路径，每次压缩后核对 ZIP 文件名清单与待打包清单。压缩工具返回成功但漏文件时也会拒绝该产物。

@@ -99,7 +99,7 @@ import { findSpecifiers } from './check-imports.mjs';
 import { rewriteManifest } from '../server/http/assetViews.js';
 import { mergeLocalManifests, planFromManifests } from '../public/js/assetPack.js';
 import { writePackIndex } from './packs.mjs';
-import { compareVersions, diffBases, manifestText, readBase, updateText } from './package-update.mjs';
+import { compareVersions, diffBases, manifestText, readBase, updateText, readZip } from './package-update.mjs';
 import {
   APPLIED_FILE, MANIFEST_FILE, UPDATE_FILE, affectsRuntime, digestFile, inManifest, isSetupArt, listedArtFiles,
   parseManifest, parseUpdate, pathProblem, removalProblem,
@@ -688,14 +688,27 @@ export function zipFolder(cwd, zipPath, folder = FOLDER) {
     ['zip', ['-q', '-r', '-X', zipPath, folder]],
     ['tar', ['-c', '--format', 'zip', '--options', 'zip:hdrcharset=UTF-8', '-f', zipPath, folder]],
   ];
+  // Windows Info-ZIP can return success while silently omitting files beyond MAX_PATH.
+  if (process.platform === 'win32') attempts.reverse();
+  const expected = new Set(listTree(cwd, folder));
   const failed = [];
   for (const [cmd, args] of attempts) {
     // a half-written zip from the attempt before must not pass for one this attempt made
     fs.rmSync(zipPath, { force: true });
     const r = spawnSync(cmd, args, { cwd, encoding: 'utf8' });
-    if (!r.error && r.status === 0 && isFile(zipPath)) return;
+    let archiveError = '';
+    if (!r.error && r.status === 0 && isFile(zipPath)) {
+      try {
+        const actual = new Set();
+        readZip(zipPath, (name) => { actual.add(name); }, { namesOnly: true });
+        const missing = [...expected].filter(name => !actual.has(name));
+        const extra = [...actual].filter(name => !expected.has(name));
+        if (missing.length || extra.length) throw new Error(`archive file list differs: ${missing.length} missing, ${extra.length} unexpected; ${missing[0] || extra[0]}`);
+        return;
+      } catch (error) { archiveError = error.message; }
+    }
     const end = r.status === null && r.signal ? `signal ${r.signal}` : `exit ${r.status}`;
-    const why = r.error ? String(r.error.code || r.error.message) : `${end}${errLine(r.stderr) ? ` (${errLine(r.stderr)})` : ''}`;
+    const why = archiveError || (r.error ? String(r.error.code || r.error.message) : `${end}${errLine(r.stderr) ? ` (${errLine(r.stderr)})` : ''}`);
     failed.push({ text: `${cmd}: ${why}`, missing: r.error?.code === 'ENOENT' });
   }
   fs.rmSync(zipPath, { force: true });

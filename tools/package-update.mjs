@@ -58,8 +58,9 @@ function entryName(cd, p, flags, nameLen, extraLen) {
  * Call `onFile(name, data)` for every file entry of a zip (directories skipped), in central-directory order.
  * @param {string} zipPath
  * @param {(name: string, data: Buffer) => void} onFile
+ * @param {{ namesOnly?: boolean }} [options] Read central-directory names only, passing an empty buffer; no payload/CRC validation in this mode.
  */
-export function readZip(zipPath, onFile) {
+export function readZip(zipPath, onFile, { namesOnly = false } = {}) {
   const fd = fs.openSync(zipPath, 'r');
   try {
     const size = fs.fstatSync(fd).size;
@@ -116,6 +117,7 @@ export function readZip(zipPath, onFile) {
       if (name.endsWith('/')) continue;
       if ((madeBy >> 8) === 3 && ((external >>> 16) & 0o170000) === 0o120000) throw new Error(`${name}: a symbolic link (release zips have none)`);
       if (flags & 1) throw new Error(`${name}: encrypted`);
+      if (namesOnly) { onFile(name, Buffer.alloc(0)); continue; }
       const local = readAt(fd, offset, 30);
       if (local.readUInt32LE(0) !== SIG.local) throw new Error(`${name}: damaged local header`);
       const packed = readAt(fd, offset + 30 + local.readUInt16LE(26) + local.readUInt16LE(28), packedSize);

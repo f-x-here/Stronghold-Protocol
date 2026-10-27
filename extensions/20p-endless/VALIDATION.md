@@ -57,3 +57,5 @@ setup、smoke、guards、lint、imports、typecheck 均通过；test 步骤没�
   不是对 273 套模型逐一进行战斗实测；现有自动化会校验全部插件文件、锁与 541 个 Front/Back 骨架。
 - 两个原生外观插件 `check --strict` 均为 0 problems / 0 warnings，不修改原生插件大小限制。
 - 回归日志：`.cache/20p-port/room-browser-result.json`、`room-skin-tests.log`、`room-package-tests.log`、`room-fix-tests.log`。
+
+成品回读发现 Windows Info-ZIP 在长路径下静默漏文件：压缩命令返回 0，但部分模型不在 ZIP 中。已在 Windows 优先采用 bsdtar，并在每次压缩后按 ZIP 中央目录逐一核对全部文件；新增超过 260 字符的模型路径回归。未通过的批次不交付。

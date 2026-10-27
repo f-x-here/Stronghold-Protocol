@@ -1,4 +1,5 @@
-import { isPluginResource } from '../tools/package.mjs';
+import { zipFolder, isPluginResource } from '../tools/package.mjs';
+import { readZip } from '../tools/package-update.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -60,4 +61,20 @@ test('only the two generated outfit plugins are eligible for the local release',
   assert.equal(isPluginResource('plugins/local-outfits-a/run.js'), false);
   assert.equal(isPluginResource('plugins/local-outfits-a/../secret.png'), false);
   assert.equal(isPluginResource('plugins/private/plugin.json'), false);
+});
+
+
+test('the archive includes model files whose staging paths exceed Windows MAX_PATH', t => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sp-long-archive-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const rel = ['root', 'x'.repeat(80), 'y'.repeat(80), 'z'.repeat(70), 'model.skel'].join('/');
+  const file = path.join(dir, rel);
+  assert.ok(file.length > 260);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, 'long-path-skeleton');
+  const zip = path.join(dir, 'model.zip');
+  zipFolder(dir, zip, 'root');
+  const names = [];
+  readZip(zip, (name, data) => { names.push(name); assert.equal(data.toString(), 'long-path-skeleton'); });
+  assert.deepEqual(names, [rel]);
 });
