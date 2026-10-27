@@ -30,6 +30,7 @@ import crypto from 'node:crypto';
 import os from 'node:os';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { releaseInfo, defaultReleaseDir } from '../tools/package-local.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const IS_WIN = process.platform === 'win32';
@@ -459,7 +460,9 @@ ${tree}
 async function main() {
   const o = parseArgs(process.argv.slice(2));
   if (o.help) { console.log(HELP); return 0; }
-  const out = path.resolve(o.out || path.join(path.dirname(ROOT), 'Stronghold-Protocol-Windows'));
+  const appVersion = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version;
+  const buildInfo = releaseInfo(appVersion);
+  const out = path.resolve(o.out || path.join(defaultReleaseDir(ROOT), buildInfo.id, `Stronghold-Protocol-Windows-${buildInfo.id}`));
   const appDir = path.join(out, 'app');
   const nodeDir = path.join(out, 'node');
 
@@ -503,6 +506,7 @@ async function main() {
     console.log(`  · 清掉 ${out}（${verdict === 'empty' ? '空目录' : '上一次的便携包'}）`);
   }
   await fsp.mkdir(out, { recursive: true });
+  await fsp.writeFile(path.join(out, 'BUILD-INFO.json'), JSON.stringify({ ...buildInfo, variant: 'windows-portable', programFile: path.basename(out), assetsFile: null }, null, 2) + '\n');
 
   // 1) 游戏代码：只收 git 跟踪的文件
   const all = trackedFiles();

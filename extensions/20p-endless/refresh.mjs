@@ -18,7 +18,7 @@ if (ref.status !== 0) throw new Error(`Unknown base commit: ${base}`);
 const sha = (s) => s == null ? null : createHash('sha256').update(s).digest('hex');
 const paths = [...new Set([...payload.files.map(f => f.path), ...args.filter((arg, i) => args[i - 1] === '--add')])].sort();
 const files = paths.map((rel) => {
-  if (!/^(?:server\/|shared\/|public\/(?:js|css|i18n)\/|test\/|docs\/|README\.md$|eslint\.config\.js$|启动20人无尽版\.bat$)/.test(rel)
+  if (!/^(?:server\/|shared\/|public\/(?:js|css|i18n)\/|test\/|docs\/|tools\/|scripts\/|package\.json$|README\.md$|eslint\.config\.js$|启动20人无尽版\.bat$)/.test(rel)
     || rel.includes('..') || rel.includes('\\')) throw new Error(`Refusing non-source path: ${rel}`);
   const previous = spawnSync('git', ['show', `${ref.stdout.trim()}:${rel}`], { cwd: root, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
   const before = previous.status === 0 ? previous.stdout.replace(/\r\n/g, '\n') : null;

@@ -26,6 +26,12 @@ const FAKE_HOME = ['', 'Users', 'someone'].join('/');
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const TOOL = path.join(ROOT, 'tools', 'package.mjs');
 
+function latestBatch(out) {
+  const dirs = fs.readdirSync(out).filter(name => /^\d{8}-\d{6}-\d{3}$/.test(name)).sort();
+  const dir = path.join(out, dirs.at(-1));
+  return { dir, info: JSON.parse(fs.readFileSync(path.join(dir, 'BUILD-INFO.json'), 'utf8')) };
+}
+
 test('all install and favicon assets ship independently of optional game art', () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, 'public/manifest.json'), 'utf8'));
   const html = fs.readFileSync(path.join(ROOT, 'public/index.html'), 'utf8');
@@ -259,17 +265,19 @@ test('a --no-install build of the temporary checkout zips exactly the plan in on
   try {
     const r = runTool(['--root', dir, '--out', out, '--no-install', '--allow-dirty']);
     assert.equal(r.status, 0, r.stdout + r.stderr);
-    const zip = path.join(out, `${FOLDER}-v9.9.9.zip`);
+    const batch = latestBatch(out);
+    const zip = path.join(batch.dir, batch.info.programFile);
     assert.ok(fs.statSync(zip).size > 0);
-    assert.deepEqual(fs.readdirSync(out), [path.basename(zip)], 'the stage is removed after zipping');
+    assert.deepEqual(fs.readdirSync(batch.dir).sort(), ['BUILD-INFO.json', 'SHA256SUMS.txt', batch.info.programFile, batch.info.assetsFile].sort(), 'only the paired archives and batch metadata remain');
     if (hasUnzip) {
-      const entries = spawnSync('unzip', ['-Z1', zip], { encoding: 'utf8' }).stdout.split('\n').filter((l) => l && !l.endsWith('/'));
+      const entries = spawnSync('unzip', ['-Z1', zip], { encoding: 'utf8' }).stdout.split(/\r?\n/).filter((l) => l && !l.endsWith('/'));
       // and MANIFEST.json, written after npm ci (server/update.js; test/update-package.test.js checks its content)
-      assert.deepEqual(entries.sort(), [...SHIPPED_TRACKED, ...ART, 'MANIFEST.json'].map((f) => `${FOLDER}/${f}`).sort());
+      assert.deepEqual(entries.sort(), [...SHIPPED_TRACKED, ...ART, 'MANIFEST.json', 'BUILD-INFO.json'].map((f) => `${FOLDER}/${f}`).sort());
     }
     const again = runTool(['--root', dir, '--out', out, '--no-install', '--allow-dirty']);
-    assert.equal(again.status, 1, 'an existing zip is not replaced without --force');
-    assert.match(again.stderr, /already exists \(--force replaces it\)/);
+    assert.equal(again.status, 0, 'another build creates another batch');
+    assert.equal(fs.readdirSync(out).length, 2);
+    assert.ok(fs.existsSync(zip), 'the earlier batch remains');
     const inRepo = runTool(['--root', dir, '--out', path.join(dir, 'dist'), '--no-install', '--allow-dirty', '--lite']);
     assert.equal(inRepo.status, 1);
     assert.match(inRepo.stderr, /refusing to write into the repository/);
@@ -302,7 +310,8 @@ test('content packs ship: every committed pack of both layouts, never one only o
     assert.match(dry.stdout, /^generated: packs\/index\.json, server\/release-without-llm \(the pack index of the shipped packs, for a static host; the release marker that keeps external AI off the package\)$/m);
     const r = runTool(['--root', dir, '--out', out, '--no-install', '--allow-dirty', '--lite', '--keep-stage']);
     assert.equal(r.status, 0, r.stdout + r.stderr);
-    const stage = path.join(out, `${FOLDER}-v9.9.9-lite`, FOLDER);
+    const batch = latestBatch(out);
+    const stage = path.join(batch.dir, batch.info.programFile.slice(0, -4), FOLDER);
     const index = JSON.parse(fs.readFileSync(path.join(stage, 'packs/index.json'), 'utf8'));
     assert.deepEqual(index.packs.map((x) => [x.id, x.type, x.files]), [
       ['en', 'lang', { ui: '/i18n/en.json' }],
@@ -326,7 +335,8 @@ test('the stage drops dishonest npm scripts and rewrites unshipped doc links', {
     put('docs/DEPLOY.md', '# d\n\n[packs](PACKS.md)\n[win](WINDOWS.md)\n[notice](../NOTICE.md)\n');
     const r = runTool(['--root', dir, '--out', out, '--no-install', '--allow-dirty', '--lite', '--keep-stage']);
     assert.equal(r.status, 0, r.stdout + r.stderr);
-    const stage = path.join(out, `${FOLDER}-v9.9.9-lite`, FOLDER);
+    const batch = latestBatch(out);
+    const stage = path.join(batch.dir, batch.info.programFile.slice(0, -4), FOLDER);
     const stagedPkg = JSON.parse(fs.readFileSync(path.join(stage, 'package.json'), 'utf8'));
     assert.deepEqual(Object.keys(stagedPkg.scripts).sort(), ['assets', 'doctor', 'launch', 'postinstall', 'setup', 'start', 'vendor']);
     assert.equal(JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8')).scripts.test, 'node --test');
@@ -519,16 +529,18 @@ test('a --assets build zips exactly the plan and README.txt in one folder, and t
     const r = runTool(['--root', dir, '--assets', '--out', out]);
     assert.equal(r.status, 0, r.stdout + r.stderr);
     assert.match(r.stdout, /^not a release asset: offer it for download elsewhere/m);
-    const name = 'Stronghold-Protocol-v9.9.9-assets';
-    const zip = path.join(out, `${name}.zip`);
-    assert.deepEqual(fs.readdirSync(out), [`${name}.zip`], 'the stage is removed after zipping');
+    const batch = latestBatch(out);
+    const name = batch.info.assetsFile.slice(0, -4);
+    const zip = path.join(batch.dir, batch.info.assetsFile);
+    assert.deepEqual(fs.readdirSync(batch.dir).sort(), ['BUILD-INFO.json', 'SHA256SUMS.txt', batch.info.assetsFile].sort(), 'the stage is removed after zipping');
     if (hasUnzip) {
-      const entries = spawnSync('unzip', ['-Z1', zip], { encoding: 'utf8' }).stdout.split('\n').filter((l) => l && !l.endsWith('/'));
+      const entries = spawnSync('unzip', ['-Z1', zip], { encoding: 'utf8' }).stdout.split(/\r?\n/).filter((l) => l && !l.endsWith('/'));
       assert.deepEqual(entries.sort(), [...PACK_ART, ASSET_PACK_README].map((f) => `${name}/${f}`).sort());
     }
     const again = runTool(['--root', dir, '--assets', '--out', out]);
-    assert.equal(again.status, 1, 'an existing zip is not replaced without --force');
-    assert.match(again.stderr, /already exists \(--force replaces it\)/);
+    assert.equal(again.status, 0, 'a second build preserves the first batch');
+    assert.equal(fs.readdirSync(out).length, 2);
+    assert.ok(fs.existsSync(zip));
     assert.equal(runTool(['--root', dir, '--assets', '--out', out, '--force']).status, 0);
     const inRepo = runTool(['--root', dir, '--assets', '--out', path.join(dir, 'dist')]);
     assert.equal(inRepo.status, 1);
@@ -573,7 +585,8 @@ test('a --assets build of a development version needs --allow-dev', { skip: !has
     assert.deepEqual(fs.readdirSync(out), []);
     const dev = runTool(['--root', dir, '--assets', '--out', out, '--allow-dev']);
     assert.equal(dev.status, 0, dev.stdout + dev.stderr);
-    assert.ok(fs.existsSync(path.join(out, 'Stronghold-Protocol-v9.9.9-dev-assets.zip')));
+    const batch = latestBatch(out);
+    assert.ok(fs.existsSync(path.join(batch.dir, batch.info.assetsFile)));
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
     fs.rmSync(out, { recursive: true, force: true });

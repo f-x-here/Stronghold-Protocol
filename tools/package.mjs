@@ -115,10 +115,10 @@ const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const FOLDER = 'Stronghold-Protocol';
 
 /** Root files a player gets. */
-export const ROOT_FILES = ['package.json', 'package-lock.json', 'LICENSE', 'NOTICE.md', 'THIRD-PARTY-NOTICES.md', 'README.md', 'CHANGELOG.md'];
+export const ROOT_FILES = ['package.json', 'package-lock.json', 'LICENSE', 'NOTICE.md', 'THIRD-PARTY-NOTICES.md', 'README.md', 'CHANGELOG.md', '启动20人无尽版.bat'];
 /** The player docs. */
 export const PLAYER_DOCS = ['docs/PLAYING.md', 'docs/DEPLOY.md', 'docs/PLUGINS.md', 'docs/PLUGIN-GUIDE.md',
-  'docs/PLUGIN-DSL.md', 'docs/PLUGIN-API.md', 'docs/SKINS.md', 'docs/plugin-catalog.example.json'];
+  'docs/PLUGIN-DSL.md', 'docs/PLUGIN-API.md', 'docs/SKINS.md', 'docs/plugin-catalog.example.json', 'docs/LOCAL_RELEASE.md'];
 /** The author harness has no test-only dependencies; the rest of test/ stays out. */
 export const AUTHOR_TEST_FILES = ['test/helpers/battleHarness.js'];
 /** Only these repository-owned plugin resources ship, even if an owner's plugin was accidentally tracked. */
@@ -192,8 +192,8 @@ export const REFUSE = ['pv', '3，9，11回合情况', 'review', 'docs/research/
   'test', '.github', 'AGENTS.md', 'public/dev', 'node_modules/.cache'];
 
 /** Home-directory paths: macOS / Linux (case as the OS writes them) and Windows (any case; / or \, JSON-escaped too). */
-const HOME_POSIX = /\/Users\/[A-Za-z]|\/home\/[A-Za-z]/;
-const HOME_WIN = /[A-Za-z]:[\\/]{1,2}Users[\\/]{1,2}[A-Za-z]/i;
+const HOME_POSIX = /\/Users\/[A-Za-z0-9]|\/home\/[A-Za-z0-9]/;
+const HOME_WIN = /[A-Za-z]:[\\/]{1,2}Users[\\/]{1,2}[A-Za-z0-9]/i;
 /** OS account names too generic to refuse (CI runners, containers). */
 const GENERIC_USERS = new Set(['root', 'user', 'admin', 'node', 'runner', 'ubuntu', 'ci', 'guest', 'app', 'build']);
 
@@ -522,7 +522,11 @@ const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
  * scan (the sha256 values of MANIFEST.json / UPDATE.json, which a hex-only name would match).
  */
 export function scanFiles(root, files, { home = true, names = [], strip = null } = {}) {
-  const nameRe = names.length ? new RegExp(names.map((n) => escapeRe(Buffer.from(n, 'utf8').toString('latin1'))).join('|'), 'i') : null;
+  // A numeric Windows login must not match the middle of a model coordinate (e.g. 0.3166902).
+  const nameRe = names.length ? new RegExp(names.map((n) => {
+    const escaped = escapeRe(Buffer.from(n, 'utf8').toString('latin1'));
+    return /^\d+$/.test(n) ? `(?<![0-9.])${escaped}(?![0-9.])` : escaped;
+  }).join('|'), 'i') : null;
   const hits = [];
   for (const rel of files) {
     let text;
@@ -799,11 +803,12 @@ function makeStage(root, p, stage, { install, env, log }) {
     }
   }
   const files = new Map();
+  if (p.buildInfo) fs.writeFileSync(path.join(stage, 'BUILD-INFO.json'), JSON.stringify(p.buildInfo, null, 2) + '\n');
   for (const f of listTree(stage, '', { junk: true })) if (inManifest(f)) files.set(f, digestOf(stage, f));
   fs.writeFileSync(path.join(stage, MANIFEST_FILE), manifestText({ app: p.version, files }));
   parseManifest(fs.readFileSync(path.join(stage, MANIFEST_FILE), 'utf8')); // as doctor and an update read it back
   log(`${MANIFEST_FILE}: ${files.size} files (the art is setup's)`);
-  const { staged, problems } = stageProblems(stage, new Set([...p.files, MANIFEST_FILE]), { env });
+  const { staged, problems } = stageProblems(stage, new Set([...p.files, MANIFEST_FILE, ...(p.buildInfo ? ['BUILD-INFO.json'] : [])]), { env });
   if (problems.length) throw new Error(`refusing to zip ${stage}:\n${problems.map((x) => `  ${x}`).join('\n')}`);
   return staged;
 }
@@ -813,7 +818,7 @@ export function build(root, p, { out, install = true, force = false, keepStage =
   if (p.problems.length) throw new Error('refusing to build: the plan has problems (see the summary)');
   const dest = path.resolve(out);
   if (packageOutIsUnsafe(dest, root)) throw new Error(`refusing to write into the repository or a parent of it: ${dest}`);
-  const name = `${FOLDER}-v${p.version}${p.lite ? '-lite' : ''}`; // 0.1.x's release asset names
+  const name = p.buildInfo?.programFile?.slice(0, -4) || `${FOLDER}-v${p.version}${p.lite ? '-lite' : ''}`;
   const work = path.join(dest, name);
   const stage = path.join(work, FOLDER);
   const zipPath = path.join(dest, `${name}.zip`);
@@ -937,6 +942,8 @@ export function assetPackReadme(p) {
   const zh = [
     `卫戍协议：盟约 ${v} 素材包`,
     `Stronghold Protocol: Alliance ${v} asset pack`,
+    ...(p.buildInfo ? [`打包时间 / Build time: ${p.buildInfo.builtAtLocal}`, `批次 / Batch: ${p.buildInfo.id}`,
+      `对应程序包 / Application: ${p.buildInfo.programFile || '(assets only)'}`] : []),
     '',
     '【这是什么】',
     `游戏的美术、Spine 模型、音频和字体，共 ${p.files.length} 个文件（${size}），给游戏标题画面的「导入素材包」使用：`,
@@ -1062,7 +1069,7 @@ export function buildUpdate(root, p, bases, { out, install = true, force = false
   if (!bases.length) throw new Error('an update needs at least one base (--from)');
   const dest = path.resolve(out);
   if (packageOutIsUnsafe(dest, root)) throw new Error(`refusing to write into the repository or a parent of it: ${dest}`);
-  const name = `${FOLDER}-v${p.version}-update`;
+  const name = p.buildInfo?.programFile?.slice(0, -4) || `${FOLDER}-v${p.version}-update`;
   const work = path.join(dest, name);
   const full = path.join(work, '.full', FOLDER);
   const stage = path.join(work, FOLDER);
@@ -1237,4 +1244,7 @@ function mainAssets(o) {
 }
 
 const invoked = (() => { try { return pathToFileURL(fs.realpathSync(process.argv[1] || '')).href; } catch { return null; } })();
-if (invoked === import.meta.url) process.exitCode = main(process.argv.slice(2));
+if (invoked === import.meta.url) {
+  import('./package-local.mjs').then(({ run }) => run(process.argv.slice(2)))
+    .then(code => { process.exitCode = code; }).catch(error => { console.error(error.message); process.exitCode = 1; });
+}

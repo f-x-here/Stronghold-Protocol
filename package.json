@@ -41,8 +41,9 @@
     "check:imports": "node tools/check-imports.mjs",
     "ci": "node tools/ci.mjs",
     "shards": "node tools/ci-shards.mjs",
-    "package": "node tools/package.mjs",
-    "package:lite": "node tools/package.mjs --lite"
+    "package": "node tools/package-local.mjs",
+    "package:lite": "node tools/package-local.mjs --lite",
+    "package:assets": "node tools/package-local.mjs --assets"
   },
   "engines": {
     "node": ">=22"
