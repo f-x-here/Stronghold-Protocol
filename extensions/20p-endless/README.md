@@ -61,4 +61,4 @@ npm run golden
 node tools/i18n.mjs check --all --strict
 ```
 
-不在扩展中包含官方美术。当前安装的 `public/assets` 和 `public/fonts` 通过目录联接复用 `20人卫戍-Update/Stronghold-Protocol/public/` 内的资源，移动或删除该归档前需先迁移资源。旧目录保留其完整 Git 状态、插件、资源包、启动器与历史产物，已被根仓库忽略。
+不在扩展中包含官方美术。运行素材直接保存在 `public/assets/` 和 `public/fonts/`，均为独立目录并由 Git 忽略，不依赖旧版目录。旧版源码、旧资源包及历史构建目录已移入 Windows 回收站。

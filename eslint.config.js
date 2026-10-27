@@ -57,7 +57,6 @@ const nodeFiles = [
 export default [
   {
     ignores: [
-      '20人卫戍-Update/**',
       'node_modules/**',
       'public/vendor/**',
       'public/assets/**',
