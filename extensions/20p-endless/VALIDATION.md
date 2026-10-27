@@ -46,3 +46,14 @@ setup、smoke、guards、lint、imports、typecheck 均通过；test 步骤没�
 完整日志和截图保留在根目录 `.cache/20p-port/`：
 `ci-final.log`、`feature-final.log`、`compat-final.log`、`checks-final.log`、`golden-final.log`、
 `endless-replay.log`、`baseline-env-final.log`、`asset-paths-final.log`、`browser-final.log`、`room20.png`、`draft20.png`。
+
+
+## 2026-10-27 等待室与时装修复
+
+- 真实 WebSocket：AI 即时交换、真人确认/拒绝、请求权限、过期身份、离房取消、准备重置、房主身份保留、开局禁止交换。
+- 浏览器（Chrome）：2048×807、1280×720、800×600、667×375 固定添加 AI 入口均通过命中点击检查。
+  真人与 AI 交换均实际操作；273 套外观已加载，名片选择经过 room.skins 同步，另一客户端收到并显示对应皮肤图片。
+  一个实际皮肤 Front 模型通过生产 Spine 加载器解析并实例化（12 动画、84 槽位），无页面错误。
+  不是对 273 套模型逐一进行战斗实测；现有自动化会校验全部插件文件、锁与 541 个 Front/Back 骨架。
+- 两个原生外观插件 `check --strict` 均为 0 problems / 0 warnings，不修改原生插件大小限制。
+- 回归日志：`.cache/20p-port/room-browser-result.json`、`room-skin-tests.log`、`room-package-tests.log`、`room-fix-tests.log`。

@@ -259,3 +259,6 @@ exists) gets no section rather than an empty grid.
 - **A 自选 slot's own record has `charId: null`**, so it wears its **pick's** operator's skin — the slot has no body of
   its own. The picker offers the appearance while picking that operator, and the choice is kept per operator, so
   changing the slot's operator changes the appearance with it.
+
+
+本地 v0.3.3 部署通过 `tools/local-outfits.mjs` 将现有可选时装资源生成两个原生个人外观插件，不修改此文的运行时协议与 charId 选择键。恢复、启用及打包步骤见 [本地发行说明](LOCAL_RELEASE.md)。

@@ -530,6 +530,8 @@ export const C2S = {
   'room.setAiTakeover': { on: isBool },
   'room.aiRequest': { botId: isId },
   'room.aiVote': { voteId: (v) => typeof v === 'string' && v.length <= 16, approve: isBool },
+  'room.swapSeat': { seat: (v) => isInt(v, 0, MAX_SEATS - 1), playerId: isId },
+  'room.answerSeatSwap': { requestId: (v) => isInt(v, 1, Number.MAX_SAFE_INTEGER), accept: isBool },
   'room.addBot': {},
   'room.removeBot': { seat: (v) => isInt(v, 0, MAX_SEATS - 1) },
   // the host removes another human before the match (server/lobby.js kick; community report #17); playerId = the one the

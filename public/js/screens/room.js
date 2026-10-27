@@ -64,13 +64,13 @@ import { PluginTag, VersionTag, isModdedRoom } from '../ui/pluginTag.js';
 import { VersionVote, versionVoteOf } from '../ui/versionVote.js';
 import { VersionPicker } from '../ui/versionPicker.js';
 import { DEFAULT_VERSION, lobbyVersion, needsContent, offeredDifficulties, roomVersion, serverDefaultVersion, soloTimedOf, soloTimeMsgid, versionLabel } from '../versions.js';
-import { hasScriptConsent, rememberScriptConsent, pageVersion } from '../content.js';
+import { hasScriptConsent, rememberScriptConsent, pageVersion, loadCatalog, setPersonalPlugin } from '../content.js';
 import { net } from '../net.js';
 import { store, useStore, shallowEqual, emptyMatch, isSpectating, savePref } from '../store.js';
 import { data, useData, getConfig } from '../data.js';
 import { chessAvatarUrl, chessPortraitUrl } from '../ui/assetUrls.js';
 import { CARD_KEY, cardStore, setCard, cardOperators, cardContext, seatOperator, seatCardSkin, seatArtSrc } from '../ui/seatArt.js';
-import { skinsStore, SKINS_KEY, ownerSkin } from '../ui/skins.js';
+import { skinsStore, SKINS_KEY, ownerSkin, availableSkins, setSkin, clearSkin, hasAnySkinChoices } from '../ui/skins.js';
 import { settingsStore } from '../ui/settingsStore.js';
 import { difficultyInfo, ProtocolSelect } from './lobby.js';
 import { useRise } from '../ui/transitions.js';
@@ -207,14 +207,34 @@ function CardThumb({ src, name }) {
  */
 function CardPicker({ current, list, m, localSkins = {}, onPick, onClose }) {
   const [q, setQ] = useState('');
+  const [outfitOp, setOutfitOp] = useState(null);
   const [star, setStar] = useState(0);
   const stars = useMemo(() => [...new Set(list.map((c) => c.rarity).filter((r) => r > 0))].sort((a, b) => b - a), [list]);
   const known = !!current && list.some((c) => c.charId === current);
   const needle = q.trim().toLowerCase();
   const shown = list.filter((c) => (!star || c.rarity === star)
     && (!needle || [c.name, c.appellation].some((v) => String(v || '').toLowerCase().includes(needle))));
+  const enableOutfits = async () => {
+    try {
+      const plugins = await loadCatalog();
+      for (const plugin of plugins) if (/^local-outfits-[ab]$/.test(plugin.id)) setPersonalPlugin(plugin.id, true);
+    } catch (error) { toastError(error); }
+  };
+  if (outfitOp) {
+    const rows = availableSkins(outfitOp.charId).filter(row => row.own || row.playable);
+    return html`<${Modal} open=${true} class="cardpick" title=${t('选择皮肤')} onClose=${onClose} width="min(10.4rem, 96vw)"
+        actions=${html`<${Button} variant="ghost" onClick=${() => setOutfitOp(null)}>${t('返回')}<//><${Button} variant="ghost" onClick=${onClose}>${t('关闭')}<//>`}>
+      <div class="cardpick__grid" data-testid="card-skin-picker">
+        ${rows.map(row => html`<button type="button" class="cardpick__op" data-skin=${row.id} onClick=${() => {
+          if (row.own) clearSkin(outfitOp.charId); else setSkin(outfitOp.charId, row.id);
+          onPick(outfitOp.charId);
+        }}><${CardThumb} src=${row.portrait || row.avatar} name=${row.name} /><span class="cardpick__name">${row.own ? t('默认') : row.name}</span></button>`)}
+      </div>
+    <//>`;
+  }
   return html`<${Modal} open=${true} class="cardpick" micro="SEAT CARD OPERATOR" title=${t('名片干员')} width="min(10.4rem, 96vw)"
       onClose=${onClose} actions=${html`<${Button} variant="ghost" onClick=${onClose}>${t('关闭')}<//>`}>
+    ${!hasAnySkinChoices() ? html`<${Button} size="sm" onClick=${enableOutfits}>${t('启用本地时装')}<//>` : null}
     <div class="cardpick__bar">
       <${TextField} class="cardpick__search" size="sm" icon="search" value=${q} onInput=${setQ} placeholder=${t('搜索干员')} />
       <div class="cardpick__stars" role="radiogroup" aria-label=${t('稀有度')}>
@@ -231,7 +251,7 @@ function CardPicker({ current, list, m, localSkins = {}, onPick, onClose }) {
         const src = chessAvatarUrl(m, c, { skin: ownerSkin(c.charId, { localSkins }) });
         const on = known && c.charId === current;
         return html`<button key=${c.charId} type="button" class=${`cardpick__op r${c.rarity}${on ? ' is-on' : ''}`} aria-pressed=${on ? 'true' : 'false'}
-            data-char=${c.charId} data-autofocus=${on ? '' : undefined} title=${c.name} onClick=${() => onPick(c.charId)}>
+            data-char=${c.charId} data-autofocus=${on ? '' : undefined} title=${c.name} onClick=${() => availableSkins(c.charId).length > 1 ? setOutfitOp(c) : onPick(c.charId)}>
           <${CardThumb} src=${src} name=${c.name} />
           <span class="cardpick__name">${c.name}</span>${c.rarity ? html`<span class="cardpick__star num">${c.rarity}★</span>` : null}
         </button>`;
@@ -251,7 +271,7 @@ function CardPicker({ current, list, m, localSkins = {}, onPick, onClose }) {
  * host of a co-op room, 添加 AI 队友. `portrait` is the outfit's picture, `portraitDefault` the operator's default one
  * (given when an outfit is worn): a picture that fails to load gives way to the next, the last to the avatar frame.
  */
-function SeatCard({ seat, index, room, facts, myId, busy, onAddBot, onRemoveBot, onKick, onInvite, portrait = null, portraitDefault = null, operator = null, onPickCard = null, fresh = false }) {
+function SeatCard({ seat, index, room, facts, myId, busy, onAddBot, onRemoveBot, onKick, onInvite, onSwap, portrait = null, portraitDefault = null, operator = null, onPickCard = null, fresh = false }) {
   const [badArt, setBadArt] = useState([]);
   const coop = room.mode !== 'solo';
   // the 转场 flash: a seat that turns ready (or becomes the host's), and an AI teammate added while the room is open
@@ -318,6 +338,7 @@ function SeatCard({ seat, index, room, facts, myId, busy, onAddBot, onRemoveBot,
       title=${t('移除该 AI 队友')} aria-label=${t('移除 AI 队友')}><${Icon} name="robot" /><${Icon} name="close" /></button>` : null}
     ${!seat.isBot && !isMe && facts.isHost ? html`<button type="button" class="rseat__kick" disabled=${busy === `kick${index}`}
       onClick=${() => onKick(index, seat.name, seat.playerId)} title=${t('将该博士移出同盟')} aria-label=${t('移出该博士')}><${Icon} name="user" /><${Icon} name="close" /></button>` : null}
+    ${coop && !isMe && facts.mine && (seat.isBot || !offline) ? html`<button type="button" class="rseat__swap" data-testid="seat-swap" disabled=${!!busy || !!room.seatSwap} onClick=${() => onSwap(seat)}>${t('交换位置')}</button>` : null}
     <div class="rseat__plate">
       ${isMe ? html`<span class="rseat__me" role="img" aria-label=${t('你')} title=${t('你')}><${Icon} name="info" /></span>` : null}
       <${AvatarFrame} size="sm" name=${seat.name} seat=${index} bot=${seat.isBot} self=${isMe} />
@@ -534,6 +555,8 @@ export function RoomScreen() {
   const toggleReady = () => run('ready', () => net.request('room.ready', { ready: !myReady }));
   const start = () => run('start', () => net.request('room.start', {}));
   const addBot = () => run('add', () => net.request('room.addBot', {}));
+  const swap = (seat) => run('swap', () => net.request('room.swapSeat', { seat: seat.seat, playerId: seat.playerId }));
+  const answerSwap = (accept) => run('swap', () => net.request('room.answerSeatSwap', { requestId: room.seatSwap.id, accept }));
   const removeBot = (seat) => run(`rm${seat}`, () => net.request('room.removeBot', { seat }));
   // the host removes a human before the match (community report #17): asked first; the player may join again. The
   // confirmed player's id goes along: if they left and someone else took the seat meanwhile, the server refuses it.
@@ -700,7 +723,7 @@ export function RoomScreen() {
         // the player's outfit for that operator (header "Outfits"); null = the default art
         const skin = op ? seatCardSkin(s, op.chess.charId, { myId: me.playerId, localSkins, players: facts.occupied, otherSkins }) : null;
         return html`<${SeatCard} key=${s ? `p${s.playerId}` : `e${i}`} seat=${s} index=${i} room=${room} facts=${facts}
-          myId=${me.playerId} busy=${busy} onAddBot=${addBot} onRemoveBot=${removeBot} onKick=${kick} onInvite=${() => copy('code')}
+          myId=${me.playerId} busy=${busy} onAddBot=${addBot} onSwap=${swap} onRemoveBot=${removeBot} onKick=${kick} onInvite=${() => copy('code')}
           portrait=${op ? chessPortraitUrl(data.get('assets'), op.chess, { skin }) : null}
           portraitDefault=${op && skin ? chessPortraitUrl(data.get('assets'), op.chess) : null} operator=${op?.chess} onPickCard=${() => setPicking(true)}
           fresh=${shownRoom.current === room.code} />`;
@@ -721,11 +744,17 @@ export function RoomScreen() {
     ${bannerText ? html`<p class="rs-verbanner" data-testid="version-banner"><${Icon} name="info" />${bannerText}</p>` : null}
 
           ${room.mode !== 'solo' ? html`<div class="room-capacity">
+            ${facts.isHost ? html`<${Button} size="sm" icon="robot" data-testid="room-add-ai" loading=${busy === 'add'} disabled=${facts.emptySeats === 0 || !online} onClick=${addBot}>${t('添加 AI 队友')}<//>` : null}
             <span>${t('人数上限')}</span>
             ${ROOM_CAPACITIES.map((n) => html`<button type="button" class="room-capacity__opt" aria-pressed=${n === facts.seats.length}
               disabled=${!facts.isHost || !!busy || facts.occupied.some((p) => p.seat >= n)} onClick=${() => setCapacity(n)}>${n}</button>`)}
           </div>` : null}
 
+    ${room.seatSwap && [room.seatSwap.from, room.seatSwap.to].includes(me.playerId) ? html`<div class="room-capacity" data-testid="seat-swap-request">
+      <span>${room.seatSwap.to === me.playerId ? t('玩家请求与你交换位置：P{from} ↔ P{to}', { from: room.seatSwap.fromSeat + 1, to: room.seatSwap.toSeat + 1 }) : t('等待对方同意交换位置')}</span>
+      ${room.seatSwap.to === me.playerId ? html`<${Button} size="sm" disabled=${!!busy} onClick=${() => answerSwap(true)}>${t('同意交换')}<//>` : null}
+      <${Button} size="sm" variant="secondary" disabled=${!!busy} onClick=${() => answerSwap(false)}>${t('取消交换')}<//>
+    </div>` : null}
     <footer class="room-bar rs-foot">
       <div class="rs-foot__left" aria-hidden="true"></div>
       <div class="rs-foot__center">

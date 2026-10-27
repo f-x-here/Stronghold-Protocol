@@ -1,3 +1,4 @@
+import { isPluginResource } from '../tools/package.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -50,4 +51,13 @@ test('an actual application archive contains build information tracked by MANIFE
   assert.equal(path.basename(result.zipPath), info.programFile);
   assert.deepEqual(JSON.parse(fs.readFileSync(path.join(result.stage, 'BUILD-INFO.json'), 'utf8')), info);
   assert.ok(fs.readFileSync(path.join(result.stage, 'MANIFEST.json'), 'utf8').includes('BUILD-INFO.json'));
+});
+
+
+test('only the two generated outfit plugins are eligible for the local release', () => {
+  assert.equal(isPluginResource('plugins/local-outfits-a/plugin.json'), true);
+  assert.equal(isPluginResource('plugins/local-outfits-b/art/spine/op/char_1/outfit/front/outfit.skel'), true);
+  assert.equal(isPluginResource('plugins/local-outfits-a/run.js'), false);
+  assert.equal(isPluginResource('plugins/local-outfits-a/../secret.png'), false);
+  assert.equal(isPluginResource('plugins/private/plugin.json'), false);
 });

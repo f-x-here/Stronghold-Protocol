@@ -30,6 +30,7 @@ import crypto from 'node:crypto';
 import os from 'node:os';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { prepareOutfits } from '../tools/local-outfits.mjs';
 import { releaseInfo, defaultReleaseDir } from '../tools/package-local.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -515,15 +516,17 @@ async function main() {
   const copied = await copyFiles(wanted, appDir);
   console.log(`    完成：${copied.files} 个文件 / ${MB(copied.bytes)}`);
 
+  const outfits = prepareOutfits(ROOT);
+  const assetDirs = [...ASSET_DIRS, ...outfits.folders.map(folder => path.relative(ROOT, folder))];
   // 2) 素材与前端库（不进版本库，必须存在）
-  for (const d of ASSET_DIRS) {
+  for (const d of assetDirs) {
     if (!fs.existsSync(path.join(ROOT, d))) {
       throw new Error(`缺少 ${d} —— 先运行 node tools/setup.mjs 把素材 / 前端库准备好`);
     }
   }
-  console.log(`  · 复制素材与前端库（${ASSET_DIRS.join('、')}）…`);
+  console.log(`  · 复制素材与前端库（${assetDirs.join('、')}）…`);
   let assetFiles = 0; let assetBytes = 0;
-  for (const d of ASSET_DIRS) {
+  for (const d of assetDirs) {
     // eslint-disable-next-line no-await-in-loop
     const s = await copyDir(path.join(ROOT, d), path.join(appDir, d));
     assetFiles += s.files; assetBytes += s.bytes;

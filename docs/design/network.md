@@ -464,3 +464,6 @@ and clear timers. No shrinking-electorate auto-approval. `aiTakeoverRound` is op
 player rows; local history retains it. [ASSUMED] inherited seat totals do not grant personal awards or aggregates.
 
 The internal welcome preserves the socket’s negotiated delta version and clears its public baseline for a full resync. The inherited seat’s pending pool/delegated rehearsal is cancelled; other seats continue.
+
+
+本地用户定制（2026-10-27）：等待室添加 AI 的小窗口入口、双方确认的真人座位交换（AI 自动接受）、独立时装插件恢复，详见 [本地发行说明](../LOCAL_RELEASE.md#本地等待室与时装修复2026-10-27用户定制)。开局后座位不变；不改战斗规则。

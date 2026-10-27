@@ -31,6 +31,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 await loadVisual();
 
 test('P9: active content names installed companion art only while it is off for this player and room', () => {
+  const before = [...personal.get().ids];
   const play = { id: 'play-demo', class: 'content', optional: { 'look-demo': '1.0.0', missing: '*', ui: '*' } };
   const look = { id: 'look-demo', class: 'cosmetic', status: 'loaded', scope: ['personal', 'room'], version: '1.0.0', name: 'Look demo' };
   const entries = [play, look, { id: 'ui', class: 'ui', status: 'loaded' }];
@@ -40,7 +41,7 @@ test('P9: active content names installed companion art only while it is off for 
   assert.deepEqual(companionCosmeticHints({ ...play, optional: undefined }, entries, new Set()), []);
   assert.deepEqual(companionCosmeticHints({ ...play, class: 'cosmetic' }, entries, new Set()), []);
   assert.deepEqual(companionCosmeticHints(play, [play, { ...look, version: '2.0.0' }], new Set()), []);
-  assert.deepEqual(personal.get().ids, [], 'the hint never changes personal switches');
+  assert.deepEqual(personal.get().ids, before, 'the hint never changes personal switches');
 });
 const BASE = { version: 1, chars: { char_102_texas: { avatar: '/assets/~1111111111111111/texas.png' }, char_112_siege: { avatar: '/assets/siege.png' } } };
 const fileSha = (id, rel) => sha256Hex(`${id}:${rel}`);

@@ -174,7 +174,7 @@ export function pluginName(p) {
 // ---- personal plugins -----------------------------------------------------------------------------------------------
 
 /** The personal cosmetic plugins switched on in this browser: `{ ids }` (persisted as PERSONAL_PREF). */
-export const personal = createStore({ ids: (() => { const v = loadPref(PERSONAL_PREF, []); return isIds(v) ? v : []; })() });
+export const personal = createStore({ ids: (() => { const v = loadPref(PERSONAL_PREF, ['local-outfits-a', 'local-outfits-b']); return isIds(v) ? v : []; })() });
 personal.subscribe((s) => savePref(PERSONAL_PREF, s.ids));
 
 /** What the load order reads of a catalogue entry (shared/plugins/order.js OrderEntry). @param {any} p */

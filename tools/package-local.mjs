@@ -5,8 +5,9 @@ import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { prepareOutfits } from './local-outfits.mjs';
 import { plan, assetPackPlan, build, buildAssetPack, buildUpdate, readBases, parseArgs,
-  formatSummary, formatAssetSummary, packageOutIsUnsafe, isDevVersion } from './package.mjs';
+  formatSummary, formatAssetSummary, packageOutIsUnsafe, isDevVersion, listTree, isPluginResource, scanFiles, scanNames } from './package.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const defaultReleaseDir = (root = ROOT) => path.resolve(root, '../release');
@@ -42,8 +43,19 @@ export async function run(argv = process.argv.slice(2)) {
     const root = options.root;
     const out = options.out || defaultReleaseDir(root);
     if (packageOutIsUnsafe(out, root)) throw new Error(`refusing to write into the repository or a parent of it: ${out}`);
+    const outfits = !options.assets && fs.existsSync(path.join(root, 'tools/outfits/catalog.json'))
+      ? (options.dryRun ? { folders: ['a', 'b'].map(suffix => path.join(root, `plugins/local-outfits-${suffix}`)).filter(folder => fs.existsSync(path.join(folder, 'plugin.lock.json'))), count: 'installed', models: 'installed' } : prepareOutfits(root)) : null;
+    console.log('Checking application files and installed resources…');
     const app = options.assets ? null : plan(root, { lite: options.lite, allowDirty: options.allowDirty });
+    console.log('Checking matching asset archive…');
     const art = assetPackPlan(root, { allowDirty: options.allowDirty });
+    if (app && outfits?.folders?.length) {
+      const files = outfits.folders.flatMap(folder => listTree(root, path.relative(root, folder).replaceAll('\\', '/'))).filter(file => !file.endsWith('/.studio.json'));
+      if (files.some(file => !isPluginResource(file))) throw new Error('Unexpected file in generated outfit plugin.');
+      app.problems.push(...scanFiles(root, files, { names: scanNames(process.env) }).map(hit => `personal info: ${hit}`));
+      app.files = [...new Set([...app.files, ...files])].sort();
+      console.log(`Outfits: ${outfits.count} appearances, ${outfits.models} battle models, two native cosmetic plugins included.`);
+    }
     if (app) process.stdout.write(formatSummary(app));
     process.stdout.write(formatAssetSummary(art));
     if ((app?.problems.length || 0) + art.problems.length) throw new Error('Release preflight failed; no archives written.');

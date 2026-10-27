@@ -122,7 +122,8 @@ export const PLAYER_DOCS = ['docs/PLAYING.md', 'docs/DEPLOY.md', 'docs/PLUGINS.m
 /** The author harness has no test-only dependencies; the rest of test/ stays out. */
 export const AUTHOR_TEST_FILES = ['test/helpers/battleHarness.js'];
 /** Only these repository-owned plugin resources ship, even if an owner's plugin was accidentally tracked. */
-export const isPluginResource = (rel) => rel === 'plugins/README.md' || rel === 'plugins/AGENTS.md' || rel.startsWith('plugins/_template/');
+export const isPluginResource = (rel) => rel === 'plugins/README.md' || rel === 'plugins/AGENTS.md' || rel.startsWith('plugins/_template/')
+  || /^plugins\/local-outfits-[ab]\/(?:plugin(?:\.lock)?\.json|outfits\.json|README\.md|art\/[a-zA-Z0-9_/@#.+-]+\.(?:png|atlas|skel))$/.test(rel);
 /** Research tables read at run time: server/sim/nodeData.js (the Node sim's fallback) and tools/fetch-assets.mjs. */
 export const RUNTIME_RESEARCH = ['docs/research/03-operators.json', 'docs/research/05-enemies.json', 'docs/research/05-maps.json', 'docs/research/07-assets.json'];
 /** The start scripts (scripts/make-windows-bundle.mjs is the maintainer's Windows pack, docs/WINDOWS.md). */

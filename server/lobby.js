@@ -227,6 +227,7 @@
 //     练度 and 自选 (keyed by charId) are checked again against the version's data (seatSettings); a setting checked for
 //     another content keeps only the ids whose operator (charId) is the same in both data sets.
 
+import { seatSwap, clearSeatSwap } from './seatSwap.js';
 import { aiTakeover, resetAiTakeover, reconcileAiTakeover } from './aiTakeover.js';
 import { randomBytes, randomInt } from 'node:crypto';
 import { DIFFICULTIES, ERR, MAX_SEATS, DEFAULT_SEATS, ROOM_CAPACITIES, MAX_SPECTATORS, ROOM_CODE_LEN, modeIdFor } from '../shared/constants.js';
@@ -383,6 +384,8 @@ export class Room {
      * @type {{ id: number, proposerId: string, version: string, voters: string[], agreed: Set<string>, expiresAt: number, timer: any } | null}
      */
     this.versionVote = null;
+    this.seatSwap = null;
+    this.seatSwapSeq = 0;
     /** the last vote id (room.state.versionVote.id: 1, 2, …) */
     this.versionVoteSeq = 0;
     /** the lobby clock of the last proposal, and the time before which no proposal is taken (a declined / expired vote) */
@@ -476,6 +479,7 @@ export class Room {
     return {
       t: 'room.state',
       ...(this.aiTakeoverEnabled ? { aiTakeoverEnabled: true, aiTakeoverVotes: this.aiTakeoverVotes || [] } : {}),
+      ...(this.seatSwap ? { seatSwap: { id: this.seatSwap.id, from: this.seatSwap.from, to: this.seatSwap.to, fromSeat: this.seatSwap.fromSeat, toSeat: this.seatSwap.toSeat } } : {}),
       code: this.code,
       hostId: this.hostId,
       mode: this.mode,
@@ -822,6 +826,8 @@ export class Lobby {
       case 'room.setAiTakeover': return this.setAiTakeover(session, msg);
       case 'room.aiRequest':
       case 'room.aiVote': return aiTakeover(this, session, msg);
+      case 'room.swapSeat':
+      case 'room.answerSeatSwap': return seatSwap(this, session, msg);
       case 'room.addBot': return this.addBot(session);
       case 'room.removeBot': return this.removeBot(session, msg);
       case 'room.kick': return this.kick(session, msg);
@@ -2468,6 +2474,7 @@ export class Lobby {
    */
   disposeRoom(room, reason) {
     if (room.disposed) return;
+    clearSeatSwap(room);
     room.disposed = true;
     if (this.rooms.get(room.code) === room) { this.trustedRuntime?.event('roomClosed',{room:room.toState(this.now())}); this.rooms.delete(room.code); }
     // an open version vote ends with the room (its timer)
@@ -2530,6 +2537,11 @@ export class Lobby {
 
   broadcastState(room) {
     if (room.disposed) return;
+    if (room.seatSwap) {
+      const q = room.seatSwap;
+      const a = room.seats[q.fromSeat], b = room.seats[q.toSeat];
+      if (room.match || !a || !b || a.playerId !== q.from || b.playerId !== q.to || !a.connected || !b.connected) clearSeatSwap(room);
+    }
     reconcileAiTakeover(this, room);
     if (this.trustedRuntime) {
       const state = room.toState(this.now()), prev = room.trustedPrevious;

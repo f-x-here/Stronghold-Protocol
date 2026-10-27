@@ -2416,5 +2416,11 @@
   "无尽模式": "Endless Mode",
   "{group}组已选择": "Group {group} has chosen",
   "该组已完成选择": "This group has finished choosing",
-  "无尽模拟结束": "Endless Simulation Ended"
+  "无尽模拟结束": "Endless Simulation Ended",
+  "交换位置": "Swap seats",
+  "玩家请求与你交换位置：P{from} ↔ P{to}": "A player requests a seat swap: P{from} ↔ P{to}",
+  "等待对方同意交换位置": "Waiting for seat swap approval",
+  "同意交换": "Accept swap",
+  "取消交换": "Cancel swap",
+  "启用本地时装": "Enable local outfits"
 }

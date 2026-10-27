@@ -1056,3 +1056,6 @@ window is [ASSUMED]; damage, attack timing and targeting are unchanged.
 Skill model fallback (#786, §35.90): when facing up, a skill with an authored Front clip and only an attack fallback
 on Back uses Front through the skill clip and ending. Back-authored skills keep Back. [ASSUMED] This model choice
 is presentation inferred from the available animation roles; simulation facing and targeting do not change.
+
+
+本地用户定制（2026-10-27）：等待室添加 AI 的小窗口入口、双方确认的真人座位交换（AI 自动接受）、独立时装插件恢复，详见 [本地发行说明](../LOCAL_RELEASE.md#本地等待室与时装修复2026-10-27用户定制)。开局后座位不变；不改战斗规则。
