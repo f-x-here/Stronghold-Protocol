@@ -81,7 +81,7 @@ export class SimClient {
     this.pools.push(msg);
     for (const e of this.battles.values()) {
       const pool = e.battle.sharedBoss;
-      if (pool && typeof pool.sync === 'function') pool.sync(msg.hp, msg.acked ? msg.acked[e.fieldId] : undefined);
+      if (pool && typeof pool.sync === 'function') pool.sync(msg.hp, msg.acked ? msg.acked[e.fieldId] : undefined, msg.max);
     }
   }
 

@@ -72,6 +72,25 @@ export const IMPORT_MAX_CHARS = 8_000_000;
 
 const FULL_KEY = `sp.pref.${STATS_PREF_KEY}`;
 const DAMAGED_KEY = `${FULL_KEY}.damaged`;
+const statsListeners = new Set();
+let notificationPending = false;
+
+/** Same-page successful writes (including import/clear); storage events cover other tabs in the view. */
+export function subscribeStats(listener) {
+  statsListeners.add(listener);
+  return () => statsListeners.delete(listener);
+}
+
+function notifyStats() {
+  if (notificationPending) return;
+  notificationPending = true;
+  queueMicrotask(() => {
+    notificationPending = false;
+    for (const listener of [...statsListeners]) {
+      try { listener(); } catch { /* one view must not interrupt recording or other views */ }
+    }
+  });
+}
 
 /** @returns {{ v: number, records: Array }} a fresh empty envelope */
 export const emptyStats = () => ({ v: STATS_VERSION, records: [] });
@@ -268,6 +287,7 @@ export function normalizeRecord(raw) {
     victory: bool(r.victory),
     roundsPassed: quit ? num(r.roundsPassed) : int(r.roundsPassed, 0),
     lastRound: num(r.lastRound),
+    ...(r.endless ? { endless: true } : {}),
     hiddenReached: bool(r.hiddenReached),
     hiddenCleared: bool(r.hiddenCleared),
     reason: str(r.reason, 32),
@@ -396,7 +416,7 @@ export function peekStatsRecords() {
 
 // ---- compaction + the storage budget ---------------------------------------------------------------------------
 
-const COMPACT_FRAME = ['id', 'v', 't', 'end', 'victory', 'roundsPassed', 'lastRound', 'hiddenReached', 'hiddenCleared', 'reason', 'modeId',
+const COMPACT_FRAME = ['endless', 'id', 'v', 't', 'end', 'victory', 'roundsPassed', 'lastRound', 'hiddenReached', 'hiddenCleared', 'reason', 'modeId',
   'difficulty', 'roomMode', 'durationMs', 'selfId', 'vs', 'content', 'version', 'test', 'testActions'];
 
 /**
@@ -473,6 +493,7 @@ export function saveStats(stats) {
       const ls = globalThis.localStorage;
       if (!ls) return false; // no storage at all (disabled by the browser)
       ls.setItem(FULL_KEY, JSON.stringify({ v: STATS_VERSION, records: recs }));
+      notifyStats();
       return true;
     } catch { /* quota or storage disabled — fall through to shrinking */ }
     if (recs.length <= 8) return false; // a small history that still does not fit is foreign quota pressure
@@ -518,6 +539,7 @@ export function buildRecord(res, ctx = {}) {
     victory: bool(r.victory),
     roundsPassed: int(r.roundsPassed, 0),
     lastRound: num(r.lastRound),
+    ...(r.endless ? { endless: true } : {}),
     hiddenReached: bool(r.hiddenReached),
     hiddenCleared: bool(r.hiddenCleared),
     reason: str(r.reason),
@@ -624,6 +646,7 @@ export function buildQuitRecord(state, ctx = {}) {
     victory: false,
     roundsPassed,
     lastRound: num(pub.lastRound),
+    ...(pub.endless ? { endless: true } : {}),
     hiddenReached: pub.phase === PHASE.HIDDEN_CORE,
     hiddenCleared: false,
     reason: 'quit',
@@ -663,6 +686,7 @@ export function recordToResult(rec) {
   if (!r || r.end === 'quit' || r.compact) return null;
   const res = {
     victory: r.victory,
+    ...(r.endless ? { endless: true } : {}),
     roundsPassed: r.roundsPassed,
     hiddenReached: r.hiddenReached,
     hiddenCleared: r.hiddenCleared,

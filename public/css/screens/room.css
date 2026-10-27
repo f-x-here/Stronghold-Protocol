@@ -818,3 +818,23 @@
   .rs .vervote .vervote__text { flex: 0 1 auto; min-height: 0; overflow-y: auto; }
   .rs .vervote .vervote__actions { flex: none; }
 }
+
+/* User-requested 20-seat source extension: preserve upstream cards inside a scrollable grid. */
+.rs-seats.seats--expanded {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(150px, 1fr));
+  grid-auto-rows: minmax(250px, 1fr);
+  align-content: start;
+  gap: 12px;
+  overflow: auto;
+}
+.rs-seats.seats--dense { grid-template-columns: repeat(5, minmax(140px, 1fr)); }
+.rs-seats.seats--expanded .rseat { width: auto; min-width: 0; animation-delay: 0ms; }
+.rs-seats.seats--expanded .rseat__art { min-height: 130px; }
+.room-capacity { position: relative; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px; padding: 6px 12px; }
+.room-capacity__opt { min-height: 32px; padding: 4px 10px; border: 1px solid #5d6865; color: #eef0ef; background: #202927; font: inherit; cursor: pointer; }
+.room-capacity__opt[aria-pressed="true"] { color: #5df0c6; border-color: currentColor; }
+.room-capacity__opt:disabled { opacity: .5; cursor: default; }
+@media (max-width: 800px) {
+  .rs-seats.seats--expanded, .rs-seats.seats--dense { grid-template-columns: repeat(4, minmax(125px, 1fr)); }
+}

@@ -347,8 +347,9 @@ function MatchScreen() {
   const editable = !offerBlocksPrep(pub?.offers) && phase === PHASE.PREP && !!priv && alive && !priv.ready && !watchingOther && !hasPersonalChoice;
   const showShop = !!priv && alive && (phase === PHASE.PREP || phase === PHASE.SP_DRAFT || phase === PHASE.ROUND_START) && !watchingOther;
   const layersDisabled = phase === PHASE.UNITE || isBossPhase(phase);
-  const sp = phase === PHASE.SP_DRAFT ? normalizeSp(pub?.sp, players) : null;
-  const total = phaseTotalSeconds(pub, gd.config, myId);
+  const sp = phase === PHASE.SP_DRAFT ? normalizeSp(pub?.sp, players, myId, pub?.poolGroups) : null;
+  const total = sp?.groups.length ? sp.turnSeconds : phaseTotalSeconds(pub, gd.config, myId);
+  const clockPub = sp?.groups.length ? { ...pub, deadline: sp.ownGroupId != null && !sp.untimed && !sp.done ? sp.turnDeadline : 0 } : pub;
   // solo pause: offered in the own battle; while m.public.paused every HUD clock stops at the pause moment
   const paused = isPaused(pub);
   const pauseSeenRef = useRef(null);
@@ -1822,7 +1823,7 @@ function MatchScreen() {
   const detailOwner = detailBondOwner(detailTarget, { pub, myId, stripOwnerId: strip.ownerId });
   const detailBonds = detailOwner === strip.ownerId ? stripBonds : playerBonds({ pub, priv, myId, ownerId: detailOwner, live: liveLayers });
   // bonds this mode never activates (标准: 10 of 23, 奥术 among them) — shown 本局禁用 on cards, chips and the popup
-  const offBonds = modeOffBonds(getMode(pub?.modeId));
+  const offBonds = modeOffBonds(getMode(pub?.modeId), pub);
 
   return html`<div class=${cx('screen', 'gm', `gm--${mode}`, drag && 'is-dragging', barCollapsed && 'is-collapsed', (sp || hasPersonalChoice || offerBlocksPrep(pub?.offers)) && 'has-sp', sp && 'has-spdraft', pen && 'is-pen', readyWhy && 'has-readywhy')}
       data-camera=${pen ? 'pen' : camKind}>
@@ -1834,13 +1835,13 @@ function MatchScreen() {
     ${showPrep && view && viewKind !== 'loading' && priv && !pen ? html`<${StandInTags} view=${view} priv=${priv} getChess=${gd.chess} backups=${gd.backups} diyData=${{ chess: data.get('chess'), backups: data.get('backups') }} />` : null}
 
     <div class=${cx('gm__hud', hudIn && `is-${hudIn}`)} ref=${hudElRef}>
-      <${TopBar} pub=${pub} priv=${priv} conn=${conn} hud=${hud} total=${total} drawer=${drawer}
+      <${TopBar} pub=${clockPub} priv=${priv} conn=${conn} hud=${hud} total=${total} drawer=${drawer}
         onExit=${() => setExitOpen(true)} onDrawer=${(t) => setDrawer((d) => (d ? null : t))} onReady=${toggleReady}
         readyBusy=${readyBusy} readyCount=${readyCount} playerCount=${solo ? 1 : aliveCount}
         pen=${pen} penAvail=${penAvail} onPen=${togglePen} config=${gd.config} frozenAt=${frozenAt}
         pause=${canPause || paused ? { show: canPause, paused, busy: pauseBusy, onToggle: () => togglePause(!paused) } : null}
         live=${liveLpNow} spectator=${spectator}
-        spectators=${specFacts.list} myId=${myId} isHost=${specFacts.isHost} onRemoveSpectator=${removeSpectator} room=${modRoom}
+        spectators=${specFacts.list} myId=${myId} isHost=${specFacts.isHost} onRemoveSpectator=${removeSpectator} onUniteSkipVote=${actions.uniteSkipVote} room=${modRoom}
         held=${hudIn === 'wait'} />
 
       <div class="gm__bonds">
@@ -1937,8 +1938,8 @@ function MatchScreen() {
     </div>
 
     ${hasOffers && !sp && !personalChoice ? html`<${OfferOverlay} pub=${pub} myId=${myId} readOnly=${spectator || !alive} onAction=${actions.offer} />` : null}
-    ${sp ? html`<${ChoiceOverlay} pub=${pub} sp=${sp} myId=${myId} solo=${solo} busyIdx=${spBusy} total=${total}
-      onPick=${async (i) => { setSpBusy(i); await actions.choice(i); setSpBusy(null); }} />` : null}
+    ${sp ? html`<${ChoiceOverlay} pub=${pub} sp=${sp} myId=${myId} solo=${solo} busyToken=${spBusy} total=${total}
+      onPick=${async (i, opts = {}) => { const token = { idx: i, ...opts }; setSpBusy(token); await actions.choice(i, opts); setSpBusy((current) => current === token ? null : current); }} />` : null}
     ${personalChoice ? html`<${ChoiceOverlay} key=${personalChoice.id} pub=${pub} sp=${personalChoice} myId=${myId} solo=${solo} personal=${true}
       busyIdx=${personalBusy?.choiceId === personalChoice.id ? personalBusy.idx : null} total=${total}
       onPick=${async (i) => {

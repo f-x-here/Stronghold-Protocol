@@ -1207,3 +1207,14 @@ and replay records keep full frames.
 ### Optional spectator AI handover (§35.100, PR #691)
 
 The host’s pre-match `room.setAiTakeover {on}` opts a co-op room in; default off. Only default-version vanilla PREP supports requests. Online, non-autoplay humans throughout the room vote by strict majority; if none qualify, the online host decides. The 30-second request is bound to match/round/electorate and is cancelled on membership/eligibility/phase changes. A successful handover preserves the AI seat’s resources and rebinds the spectator token, cancels that seat’s old rehearsal, and resynchronizes its unchanged delta capability. Inherited records retain `aiTakeoverRound` and previous AI metrics but grant no personal aggregates, titles, trophies or reward. These are maintainer-approved remake-only rules [ASSUMED]; see [network](design/network.md) and [handover revision](history/0.3.2/ai-handover.md).
+
+
+## Fork extension: 20 players and endless
+
+This checkout installs the user-requested [source extension](../extensions/20p-endless/README.md).
+Room creation optionally accepts `capacity`; host-only `room.setCapacity {capacity}` is bounded to
+4/8/10/16/20 and refuses to shrink past an occupied seat. Host-only `room.setEndless {on}` is pre-match only.
+`m.public` exposes permanent `poolGroups` and scoped `draft.groups` / `sp.groups`. Requests may include
+`draftId` and `groupId`, which reject stale stages and foreign-group picks. The ordinary legacy fields remain
+first-group facades. `m.public.endless` and `m.result.endless` mark custom endless matches. `g.leave` emits
+one personal authoritative result before leaving an endless match; the team continues.

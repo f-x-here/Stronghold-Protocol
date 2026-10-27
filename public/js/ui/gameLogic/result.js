@@ -43,6 +43,7 @@ export function normalizeResult(res, pub) {
     };
   }).sort((a, b) => a.seat - b.seat);
   return {
+    endless: !!(r.endless ?? pub?.endless),
     victory: !!r.victory,
     roundsPassed: Number.isFinite(r.roundsPassed) ? r.roundsPassed : Math.max(0, ...players.map((p) => p.roundsPassed), 0),
     lastRound: Number.isFinite(r.lastRound) ? r.lastRound : (Number.isFinite(pub?.lastRound) ? pub.lastRound : 14),

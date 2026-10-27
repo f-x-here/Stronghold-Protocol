@@ -4,7 +4,7 @@
 // Rules (the choices where DESIGN is silent are marked ▸):
 //   * Rooms are keyed by 4-letter codes from an unambiguous alphabet (no I/O, letters only). Join codes are
 //     case-insensitive.
-//   * 'solo' rooms hold exactly one human and never bots. 'coop' rooms have 4 seats (humans + AI bots).
+//   * 'solo' rooms hold exactly one human and never bots. 'coop' rooms have 4–20 seats (humans + AI bots).
 //     Humans and bots take the lowest free seat index; seat indexes never compact.
 //   * ▸ Being in a LOBBY room and sending room.create / room.join implicitly leaves it. While your room is
 //     in a match, create/join of another room fails with ROOM_STARTED (send g.leave or room.leave first).
@@ -229,7 +229,7 @@
 
 import { aiTakeover, resetAiTakeover, reconcileAiTakeover } from './aiTakeover.js';
 import { randomBytes, randomInt } from 'node:crypto';
-import { DIFFICULTIES, ERR, MAX_SEATS, MAX_SPECTATORS, ROOM_CODE_LEN, modeIdFor } from '../shared/constants.js';
+import { DIFFICULTIES, ERR, MAX_SEATS, DEFAULT_SEATS, ROOM_CAPACITIES, MAX_SPECTATORS, ROOM_CODE_LEN, modeIdFor } from '../shared/constants.js';
 import { checkLoadout, checkLoadoutOps, cultivationCharIds, checkNotOwned, checkDiyPicks, charPotentialChanges, checkSkinSelection, operatorCharIds } from '../shared/protocol.js';
 import { encode, isErrCode, sendRaw, sendSession } from './net.js';
 import { getData as defaultGetData, lookup } from './data.js';
@@ -372,7 +372,7 @@ export class Room {
    * @param {string} code @param {'solo'|'coop'} mode @param {string} difficulty @param {number} now
    * @param {string} [version] the official version the room plays (header "Official versions")
    */
-  constructor(code, mode, difficulty, now, version = DEFAULT_VERSION) {
+  constructor(code, mode, difficulty, now, version = DEFAULT_VERSION, capacity = DEFAULT_SEATS) {
     this.code = code;
     this.mode = mode;
     this.difficulty = difficulty;
@@ -388,11 +388,12 @@ export class Room {
     /** the lobby clock of the last proposal, and the time before which no proposal is taken (a declined / expired vote) */
     this.versionProposeAt = -Infinity;
     this.versionRetryAt = -Infinity;
+    this.endless = false;
     /**
      * 「AI 队友最后选择」 (room.setAiPicksLast, GitHub #338; co-op only, off by default): the match's strategy and 机变 drafts
      * put every human seat before every AI seat (Match opts.aiPicksLast). Kept across the room's matches.
      */
-    this.aiPicksLast = false;
+    this.aiPicksLast = mode !== 'solo';
     // [ASSUMED] Remake cooperation option, approved 2026-10-24; host opt-in before the match.
     this.aiTakeoverEnabled = false;
     /**
@@ -403,7 +404,8 @@ export class Room {
     /** @type {string | null} */
     this.hostId = null;
     /** @type {(Seat | null)[]} */
-    this.seats = new Array(MAX_SEATS).fill(null);
+    this.capacity = mode === 'solo' ? 1 : capacity;
+    this.seats = new Array(this.capacity).fill(null);
     /** @type {{ playerId: string, name: string, connected: boolean }[]} spectator seats, ≤ MAX_SPECTATORS (header) */
     this.spectators = [];
     /** @type {any} running Match instance */
@@ -478,7 +480,9 @@ export class Room {
       hostId: this.hostId,
       mode: this.mode,
       difficulty: this.difficulty,
+      endless: this.endless,
       aiPicksLast: this.aiPicksLast,
+      capacity: this.capacity,
       inMatch: !!this.match,
       seats: this.seats.map((s) => (s
         ? { seat: s.seat, playerId: s.playerId, name: s.name, isBot: s.isBot, ready: s.ready, connected: s.connected && !s.left,
@@ -810,7 +814,9 @@ export class Lobby {
       case 'room.join': return this.join(session, msg);
       case 'room.leave': return this.leave(session);
       case 'room.ready': return this.ready(session, msg);
+      case 'room.setCapacity': return this.setCapacity(session, msg);
       case 'room.setDifficulty': return this.setDifficulty(session, msg);
+      case 'room.setEndless': return this.setEndless(session, msg);
       case 'room.setAiPicksLast': return this.setAiPicksLast(session, msg);
       case 'room.setSoloUnlimited': return this.setSoloUnlimited(session, msg);
       case 'room.setAiTakeover': return this.setAiTakeover(session, msg);
@@ -910,7 +916,8 @@ export class Lobby {
   // room.* handlers
   // ---------------------------------------------------------------------------------------------------
 
-  create(session, { mode, difficulty: asked, test, version: askedVersion, soloUnlimited } = {}) {
+  create(session, { mode, difficulty: asked, test, version: askedVersion, soloUnlimited, capacity = DEFAULT_SEATS } = {}) {
+    if (!ROOM_CAPACITIES.includes(capacity)) return fail(ERR.BAD_MSG);
     // A test room exists only when the process switch allowed it. The check runs before the room is built.
     if (test === true && this.testEnabled !== true) return fail(ERR.TEST_DISABLED);
     // the official version (header "Official versions"): left out, the server's default
@@ -966,7 +973,7 @@ export class Lobby {
       } else initial = r.content;
     }
     if (cur) this.removeMember(cur, session.playerId);
-    const room = new Room(code, mode, difficulty, this.now(), version);
+    const room = new Room(code, mode, difficulty, this.now(), version, capacity);
     room.test = test === true;
     // 「不限时」 only on a solo room of a version whose solo is timed (header). Anywhere else the key is ignored, so a
     // stray true cannot change a default or co-op create.
@@ -1014,8 +1021,16 @@ export class Lobby {
   leave(session) {
     const room = this.roomOf(session);
     if (!room) return fail(ERR.NOT_IN_ROOM);
-    this.removeMember(room, session.playerId);
-    return OK;
+    const leave = (answer) => {
+      if (answer?.error) return answer;
+      this.removeMember(room, session.playerId);
+      return OK;
+    };
+    if (room.endless && room.match && room.seatOf(session.playerId) && typeof room.match.settleExit === 'function') {
+      const answer = this.callMatch(room, 'settleExit', session.playerId);
+      return answer && typeof answer.then === 'function' ? answer.then(leave) : leave(answer);
+    }
+    return leave(null);
   }
 
   /**
@@ -1080,6 +1095,37 @@ export class Lobby {
     return OK;
   }
 
+  setCapacity(session, { capacity }) {
+    const room = this.roomOf(session);
+    if (!room) return fail(ERR.NOT_IN_ROOM);
+    if (room.hostId !== session.playerId) return fail(ERR.NOT_HOST);
+    if (room.match) return fail(ERR.ROOM_STARTED);
+    if (room.mode === 'solo' || !ROOM_CAPACITIES.includes(capacity)) return fail(ERR.BAD_MSG, 'invalid capacity');
+    if (room.seats.some((s, i) => s && i >= capacity)) return fail(ERR.BAD_TARGET, 'occupied seat outside requested capacity');
+    if (room.capacity === capacity) return OK;
+    this.dropReplay(room, session.playerId);
+    if (capacity > room.capacity) room.seats.push(...new Array(capacity - room.capacity).fill(null));
+    else room.seats.length = capacity;
+    room.capacity = capacity;
+    this.broadcastState(room);
+    return OK;
+  }
+
+
+  setEndless(session, { on }) {
+    const room = this.roomOf(session);
+    if (!room) return fail(ERR.NOT_IN_ROOM);
+    if (room.hostId !== session.playerId) return fail(ERR.NOT_HOST);
+    if (room.match) return fail(ERR.ROOM_STARTED);
+    this.dropReplay(room, session.playerId);
+    if (room.endless !== on) {
+      room.endless = on;
+      for (const s of room.seats) if (s && !s.isBot && s.playerId !== room.hostId) s.ready = false;
+      this.broadcastState(room);
+    }
+    return OK;
+  }
+
   setDifficulty(session, { difficulty }) {
     const room = this.roomOf(session);
     if (!room) return fail(ERR.NOT_IN_ROOM);
@@ -1122,14 +1168,11 @@ export class Lobby {
     if (room.hostId !== session.playerId) return fail(ERR.NOT_HOST);
     if (room.match) return fail(ERR.ROOM_STARTED);
     if (room.mode === 'solo') return fail(ERR.BAD_TARGET, 'solo rooms have no AI teammates');
+    if (!on) return fail(ERR.BAD_TARGET, 'manual players always pick first in this capacity branch');
     this.dropReplay(room, session.playerId);
-    if (room.aiPicksLast !== on) {
-      room.aiPicksLast = on;
-      for (const s of room.seats) if (s && !s.isBot && s.playerId !== room.hostId) s.ready = false;
-      this.broadcastState(room);
-    }
     return OK;
   }
+
 
   /**
    * 「不限时」 (DESIGN §35.23.10): host-only, before the match, a solo room of a version whose solo is timed. `on: false`
@@ -1654,6 +1697,7 @@ export class Lobby {
     return this.callMatch(room, method, session.playerId, cancel ? msg.voteId : msg.setupRevision) || fail(ERR.INTERNAL);
   }
 
+
   /**
    * room.loadout (DESIGN §16): check the operator loadout — and its per-operator 潜能 / 练度 `ops` (0.2.2) — against the
    * game data, store both on the session and the seat, and — while a match runs — hand them to the match (accepted only
@@ -1984,6 +2028,7 @@ export class Lobby {
         roomCode: room.code,
         mode: room.mode,
         difficulty: room.difficulty,
+        ...(room.endless ? { endless: true } : {}),
         // a plugin mode the host chose (header "Gameplay plugins"), else the official mode of the difficulty
         modeId: room.content?.modeId || modeIdFor(room.mode, room.difficulty),
         // 「AI 队友最后选择」 (GitHub #338): fixed for the match
@@ -2226,10 +2271,7 @@ export class Lobby {
       if (room.test !== true) return fail(ERR.TEST_FORBIDDEN);
     }
     if (!room.match) return fail(ERR.WRONG_PHASE, 'no running match');
-    if (msg.t === 'g.leave') {
-      this.removeMember(room, session.playerId);
-      return OK;
-    }
+    if (msg.t === 'g.leave') return this.leave(session);
     // a spectator only watches (header): nothing else of it ever reaches the match
     if (msg.t !== 'g.watch' && !(room.test && msg.t === 'g.test') && room.spectatorOf(session.playerId)) return fail(ERR.SPECTATOR);
     let res;

@@ -503,6 +503,7 @@ test('gameplay plugins: refused in a version room and for a proposal while on; c
   h.clock.t += 1000;
   const g = h.player('Guest');
   room.mode = 'coop'; // (a second human for a vote)
+  room.capacity = 4; room.seats.push(null, null, null);
   ok(h.lobby.join(g, { code: room.code }));
   ok(h.lobby.proposeVersion(p, { version: 'act1autochess' }));
   plugins.resolve = (ids, opts) => (opts.gameplay === false ? { error: ERR.PLUGIN_BLOCKED } : resolve(ids, opts));

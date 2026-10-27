@@ -48,7 +48,7 @@
 // Texts go through t() (docs/I18N.md).
 
 import { useEffect, useMemo, useRef, useState } from '../../vendor/hooks.module.js';
-import { DIFFICULTY_NAMES, DIFFICULTY_COLORS, MAX_SEATS, MAX_SPECTATORS } from '../../../shared/constants.js';
+import { DIFFICULTY_NAMES, DIFFICULTY_COLORS, MAX_SEATS, DEFAULT_SEATS, ROOM_CAPACITIES, MAX_SPECTATORS } from '../../../shared/constants.js';
 import {
   html, Button, Icon, MicroLabel, PingPill, AvatarFrame, DifficultyIcon, Tooltip, Spinner, confirmDialog, doctorNo, Modal,
   TextField,
@@ -82,7 +82,7 @@ import { t, tc } from '../../../shared/i18n.js';
  * @returns {(null | {seat:number, playerId:any, name:string, isBot:boolean, ready:boolean, connected:boolean})[]}
  */
 export function normalizeSeats(room) {
-  const cap = room?.mode === 'solo' ? 1 : MAX_SEATS;
+  const cap = room?.mode === 'solo' ? 1 : Math.min(MAX_SEATS, room?.capacity || (Array.isArray(room?.seats) && room.seats.length) || DEFAULT_SEATS);
   const src = Array.isArray(room?.seats) ? room.seats : [];
   const out = [];
   for (let i = 0; i < cap; i++) {
@@ -141,7 +141,7 @@ export function roomFacts(room, myId) {
  */
 export function aiLastOption(room, myId) {
   if (!room || room.mode === 'solo') return null;
-  return { on: room.aiPicksLast === true, editable: room.hostId != null && room.hostId === myId };
+  return { on: true, editable: false };
 }
 
 /** Spectator handover is available only in original default-version co-op rooms, with a host opt-in. */
@@ -360,14 +360,14 @@ function SoloUnlimitedToggle({ option, busy, onToggle }) {
 function AiLastToggle({ option, busy, onToggle }) {
   if (!option) return null;
   return html`<div class="ailast">
-    <${Tooltip} text=${t('策略与机变轮选时，所有博士先于 AI 队友选择')}>
+    <${Tooltip} text=${t('本分支固定由在线且未托管的博士先选，AI、托管和掉线席位随后选择')}>
       <button type="button" role="switch" aria-checked=${option.on ? 'true' : 'false'}
           class=${`dpick__opt ailast__opt${option.on ? ' is-active' : ''}`} disabled=${!option.editable || !!busy}
           onClick=${() => option.editable && onToggle(!option.on)}>
         <${Icon} name="check" class=${option.on ? 'is-on' : ''} />${t('AI 队友最后选择')}
       </button>
     <//>
-    ${option.editable ? null : html`<span class="t-dim">${t('由创建者设置')}</span>`}
+    ${option.editable ? null : html`<span class="t-dim">${t('固定规则')}</span>`}
   </div>`;
 }
 
@@ -542,9 +542,11 @@ export function RoomScreen() {
     const ok = await confirmDialog({ title: t('移出同盟'), text: t('确定将「{name}」移出同盟吗？对方可以凭同盟密钥重新加入。', { name: name || t('博士') }), okText: t('移出'), danger: true });
     if (ok) run(`kick${seat}`, () => net.request('room.kick', { seat, playerId }));
   };
+  const setCapacity = (capacity) => run('capacity', () => net.request('room.setCapacity', { capacity }));
+  const setEndless = () => run('endless', () => net.request('room.setEndless', { on: !room.endless }));
   const setDifficulty = (difficulty) => run('diff', () => net.request('room.setDifficulty', { difficulty }));
   const setAiTakeover = (on) => run('aihandover', () => net.request('room.setAiTakeover', { on }));
-  const setAiLast = (on) => run('ailast', () => net.request('room.setAiPicksLast', { on }));
+  const setAiLast = () => {};
   // the room is the authority; the lobby card reads the same pref the next time this browser creates a solo room
   const setSoloUnlimited = async (on) => {
     const sent = await run('solofree', () => net.request('room.setSoloUnlimited', { on }));
@@ -692,7 +694,7 @@ export function RoomScreen() {
       </div>
     </header>
 
-    <main class=${`seats rs-seats${coop ? '' : ' seats--solo'}`}>
+    <main class=${`seats rs-seats${coop ? '' : ' seats--solo'}${facts.seats.length > 4 ? ' seats--expanded' : ''}${facts.seats.length > 10 ? ' seats--dense' : ''}`}>
       ${facts.seats.map((s, i) => {
         const op = seatOperator(s, cards, { myId: me.playerId, myCard });
         // the player's outfit for that operator (header "Outfits"); null = the default art
@@ -718,10 +720,21 @@ export function RoomScreen() {
     <${VersionVote} room=${room} />
     ${bannerText ? html`<p class="rs-verbanner" data-testid="version-banner"><${Icon} name="info" />${bannerText}</p>` : null}
 
+          ${room.mode !== 'solo' ? html`<div class="room-capacity">
+            <span>${t('人数上限')}</span>
+            ${ROOM_CAPACITIES.map((n) => html`<button type="button" class="room-capacity__opt" aria-pressed=${n === facts.seats.length}
+              disabled=${!facts.isHost || !!busy || facts.occupied.some((p) => p.seat >= n)} onClick=${() => setCapacity(n)}>${n}</button>`)}
+          </div>` : null}
+
     <footer class="room-bar rs-foot">
       <div class="rs-foot__left" aria-hidden="true"></div>
       <div class="rs-foot__center">
         <p class="rs-hint">${coop ? html`<span class="rs-ready num" title=${t('已就绪')}>${facts.humans.map((s) => html`<${Icon} key=${s.playerId} name="user" class=${facts.isReady(s) ? 'is-on' : ''} />`)}<b>${facts.readyHumans}</b>/${facts.humans.length}</span>` : null}<span class="room-bar__status">${statusLine}</span></p>
+        <div class="room-capacity">
+          <button type="button" class="room-capacity__opt room-endless" aria-pressed=${!!room.endless}
+            disabled=${!facts.isHost || !!busy} onClick=${setEndless} data-testid="room-endless"
+            title=${t('通关后继续后期波次，每15轮迎战强化领袖；敌人生命每轮增加15%，攻击增加8%，直到队伍失败')}>${t('无尽模式')}${room.endless ? ' ✓' : ''}</button>
+        </div>
         <div class="rs-pill">
           <button type="button" class=${`rs-pill__diff${facts.isHost ? '' : ' is-ro'}`} disabled=${facts.isHost && !!busy} onClick=${openProto}
             title=${facts.isHost ? t('更改模拟难度') : t('由创建者选择')}><${DifficultyIcon} difficulty=${room.difficulty} />${DIFFICULTY_NAMES[room.difficulty] ? t(DIFFICULTY_NAMES[room.difficulty]) : ''}<span class="num rs-pill__code">${info.code}</span></button>

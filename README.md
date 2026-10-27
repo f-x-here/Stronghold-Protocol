@@ -1,5 +1,8 @@
 # 卫戍协议：盟约 · Stronghold Protocol: Alliance
 
+本地 fork 已安装 **v0.3.3 · 20 人 + 可选无尽模式**。双击根目录 `启动20人无尽版.bat`，或运行 `npm start`。
+扩展的安装、卸载、冲突检查和跟随上游更新方法见 [20 人无尽源码扩展](extensions/20p-endless/README.md)，实际验证范围见 [验证记录](extensions/20p-endless/VALIDATION.md)。
+
 《明日方舟》季节性自走棋塔防玩法「卫戍协议：盟约」的**非官方同人复刻**：浏览器即开即玩，单人或 1–4 人联机合作。
 
 ![version](https://img.shields.io/badge/version-0.3.3-2ea44f)

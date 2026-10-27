@@ -1,7 +1,7 @@
 // Normative message catalogue (DESIGN §8). Used by server (validation) and client (building requests).
 // Every client→server message is `{ t, rid?, ...fields }`. Unknown `t` or invalid fields ⇒ ERR.BAD_MSG.
 
-import { DIFFICULTIES, NAME_MAX_LEN, ROOM_CODE_LEN, MAX_SEATS, EMOTES, GEO } from './constants.js';
+import { DIFFICULTIES, NAME_MAX_LEN, ROOM_CODE_LEN, MAX_SEATS, ROOM_CAPACITIES, MAX_DRAFT_CARDS, EMOTES, GEO } from './constants.js';
 import { isDroppableChess } from './standIn.js';
 import { diySlotIds, validateDiyPicks } from './diy.js';
 import { cultivatedStats, isPotential, isCultivate, POTENTIAL_DEFAULT, CULTIVATE_DEFAULT, hasPotentialData } from './potential.js';
@@ -33,10 +33,13 @@ const isScalar = (v) => isStr(v, 64) || isNum(v) || isBool(v);
 /** An official version id (shared/versions.js: the activity id, `@<sub-version>` for a sub-version) — structural only; the lobby answers VERSION_UNKNOWN for one this server does not enable (DESIGN §35.23). */
 export const isVersionId = (v) => typeof v === 'string' && v.length <= 40 && /^[a-z0-9]{1,32}(?:@[A-Za-z0-9_]{1,16})?$/.test(v);
 
+const draftScope = { draftId: isId, groupId: (v) => isInt(v, 1, 5) };
+const draftScopeOptional = ['draftId', 'groupId'];
+
 // ---- client-side combat (DESIGN §14): b.progress / b.result payloads -------------------------------------------
 
 /** Size limits of a b.result payload (the whole frame also obeys the 64 KB inbound limit). */
-export const RESULT_LIMITS = Object.freeze({ players: 4, leaked: 400, unitsEnd: 64, unitStats: 160, layerGains: 40, mods: 16, unspawned: 400 });
+export const RESULT_LIMITS = Object.freeze({ players: 4, sources: MAX_SEATS, leaked: 400, unitsEnd: 64, unitStats: 160, layerGains: 40, mods: 16, unspawned: 400 });
 const BIG = 1e13;
 const isStat = (v) => v === undefined || isNum(v, 0, BIG);
 const isModVal = (v) => v === null || isNum(v, -BIG, BIG) || isStr(v, 64) || isBool(v);
@@ -509,9 +512,11 @@ export const C2S = {
   // soloUnlimited: the timed-solo opt-out 「不限时」 (DESIGN §35.23.10). Optional, and only the literal boolean —
   // the server applies `true` solely to a solo room of a version whose solo is timed, and ignores it otherwise, so a
   // default create stays the message it was.
-  'room.create': { mode: (v) => v === 'solo' || v === 'coop', difficulty: (v) => DIFFICULTIES.includes(v), test: (v) => v === true, version: isVersionId, soloUnlimited: isBool, $optional: ['test', 'difficulty', 'version', 'soloUnlimited'] },
+  'room.create': { mode: (v) => v === 'solo' || v === 'coop', difficulty: (v) => DIFFICULTIES.includes(v), test: (v) => v === true, version: isVersionId, soloUnlimited: isBool, capacity: (v) => ROOM_CAPACITIES.includes(v), $optional: ['test', 'difficulty', 'version', 'soloUnlimited', 'capacity'] },
   'room.join': { $optional: ['testAck'], testAck: (v) => v === true, code: (v) => isStr(v, ROOM_CODE_LEN + 2) && /^[A-Za-z0-9]+$/.test(v) },
   'room.leave': {},
+  'room.setCapacity': { capacity: (v) => ROOM_CAPACITIES.includes(v) },
+  'room.setEndless': { on: isBool },
   'room.ready': { ready: isBool },
   'room.setDifficulty': { difficulty: (v) => DIFFICULTIES.includes(v) },
   // the co-op room option 「AI 队友最后选择」 (GitHub #338; host, before the match): the strategy and 机变 drafts order every
@@ -578,11 +583,11 @@ export const C2S = {
   // match
   'g.infoReady': { setupRevision: (v) => isInt(v, 0, 2 ** 31), $optional: ['setupRevision'] },
   'g.rerollVote': { voteId: (v) => isInt(v, 1, 2 ** 31), agree: isBool },
-  'g.band': { bandId: isId },
-  'g.bandSkip': {},
+  'g.band': { bandId: isId, ...draftScope, $optional: draftScopeOptional },
+  'g.bandSkip': { ...draftScope, $optional: draftScopeOptional },
   // the strategy highlighted in the draft screen (user playtest #4 item 4): a turn that runs out takes it while it is
   // free (Match.timeoutBand); absent / null clears it
-  'g.bandFocus': { bandId: nullable(isId), $optional: ['bandId'] },
+  'g.bandFocus': { bandId: nullable(isId), ...draftScope, $optional: ['bandId', ...draftScopeOptional] },
   'g.buy': { slot: (v) => isInt(v, 0, 15) },
   'g.refresh': {},
   'g.freeze': {},
@@ -598,7 +603,7 @@ export const C2S = {
   // unequip (DESIGN §34.15): one equipped item back to the hand, else the visible temp window. Official rooms refuse it.
   'g.unequip': { itemUid: isUid },
   'g.reward': { idx: (v) => isInt(v, 0, 5) },
-  'g.choice': { idx: (v) => isInt(v, 0, 5), choiceId: isId, $optional: ['choiceId'] },
+  'g.choice': { idx: (v) => isInt(v, 0, MAX_DRAFT_CARDS - 1), choiceId: isId, ...draftScope, $optional: ['choiceId', ...draftScopeOptional] },
   // a plugin interaction window (PLUGIN API v2, docs/PLUGINS.md §10b): offerId is the window's declared id, idx the
   // slot picked; g.offerRefresh redraws one slot (the window's own `refresh.perSlot` bounds how often). The host
   // applies the window's declared effect primitive — a plugin never receives these messages itself.
@@ -612,6 +617,7 @@ export const C2S = {
   'g.autoplay': { on: isBool },
   // solo pause (official PauseUp / ResumeUp, DESIGN §14): freezes the running battle (field clock, deadlines, the
   // browser's local runner) — solo matches only (co-op ⇒ WRONG_PHASE), only while a battle runs; m.public.paused
+  'g.uniteSkipVote': { voteId: isId, $optional: ['voteId'] },
   'g.pause': { on: isBool },
   // the stats the own board's units start their next battle with (user playtest #4 item 7; prep phases): answered by
   // the push m.unitStats { seq, round, units: [unitStatsEntry] }; `seq` is echoed so the client keeps the newest answer
@@ -633,13 +639,14 @@ export const C2S = {
     resolved: (v) => isInt(v, 0, 1e5),
     leaks: (v) => isNum(v, 0, 1e6), bossDmg: (v) => isNum(v, 0, BIG),
     by: (v) => isMap(v, RESULT_LIMITS.players, isId, (x) => isNum(x, 0, BIG)), done: isBool,
-    left: (v) => isMap(v, RESULT_LIMITS.players, isId, (x) => isInt(x, 0, 1e5)),
+    left: (v) => isMap(v, RESULT_LIMITS.sources, isId, (x) => isInt(x, 0, 1e5)),
     leaksBy: (v) => isMap(v, RESULT_LIMITS.players, isId, (x) => isNum(x, 0, 1e6)),
     $optional: ['resolved', 'leaks', 'bossDmg', 'by', 'done', 'left', 'leaksBy'],
   },
   // `cs` (DESIGN §32, optional): the content hash the reporting browser ran the battle on — its spec's `cs`. In a room
   // with gameplay plugins (P1c, DESIGN §32.6) the match refuses a result without it or with another one (and runs the
   // battle itself); a vanilla room's browser sends none
+  'b.yield': { battleId: isId },
   'b.result': { battleId: isId, result: isBattleResult, cs: isContentHash, $optional: ['cs'] },
   // A delegated bot layout rehearsal (DESIGN §14): the match's current host answers the candidates it was handed with
   // the S2C 'b.rehearsal' frame. `choice` is the index of the candidate its browser picked, in the order the task sent

@@ -24,10 +24,11 @@ function opsCharIds(raw) {
 
 export class PlayerBasics {
   get isHumanActive() { return !this.isBot && !this.left; }
+  get pool() { return this.m.poolFor(this); }
   /** The engine acts for this seat (AI teammate or "AI 托管"; a departed human is eliminated, so nothing is left to do). */
   get botControlled() { return this.isBot || this.left || this.autoplay; }
 
-  get deployCap() { return Math.max(1, this.gd.deployCap + this.deployCapBonus, this.deployCapMin); }
+  get deployCap() { return Math.max(1, this.gd.deployCap + this.deployCapBonus, this.deployCapMin) + (this.endlessDeployCapBonus || 0); }
   get deployCount() { let n = 0; for (const p of this.board.values()) if (p.kind === 'chess') n++; return n; }
   get tempEmpty() { return this.temp.every((x) => x == null); }
 
@@ -54,6 +55,7 @@ export class PlayerBasics {
     this.temp[i] = piece;
     this._tempDue.set(piece.uid, this._tempDueNow());
   }
+
 
   /**
    * Replace the operator loadout (DESIGN §16) — and, when `ops` is given, the per-operator 潜能 / 练度 (0.2.2; null = none

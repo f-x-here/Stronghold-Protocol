@@ -77,6 +77,33 @@ function matchOpts(cs, seats, out, extra = {}) {
 const frames = () => { const out = { sent: [], broadcast: [], ended: [] }; out.end = new Promise((r) => { out.resolveEnd = r; }); return out; };
 const bots = (n) => Array.from({ length: n }, (_, i) => ({ seat: i, playerId: `ai_${i}`, name: `AI ${i}`, isBot: true, connected: true }));
 
+test('endless exit snapshots pass through real process and worker match hosts before departure', { timeout: 60_000 }, async () => {
+  for (const transport of ['process', 'worker']) {
+    const dir = pluginsDir({ endless: [{ data: ['p.json'] }, { 'p.json': bondPatch(0.31) }] });
+    const contents = setsOf(dir);
+    const resolved = contents.resolve(['endless']);
+    assert.ok(resolved.ok, JSON.stringify(resolved));
+    contents.hold(resolved.set.cs);
+    const hosts = createMatchHosts({ contents, log: quiet, options: { transport, virtualTime: true, matchOptions: { botRehearsal: 0 } } });
+    try {
+      assert.equal(hosts.stats().transport, transport);
+      const out = frames();
+      const m = hosts.create(resolved.set.cs, matchOpts(resolved.set.cs,
+        [{ seat: 0, playerId: 'p_0', name: 'Host', isBot: false, connected: true }], out, { endless: true }));
+      m.start();
+      assert.deepEqual(await m.settleExit('p_0'), { ok: true });
+      const result = out.sent.find(([id, msg]) => id === 'p_0' && msg.t === 'm.result')?.[1];
+      assert.equal(result?.reason, 'quit');
+      assert.equal(result?.endless, true);
+      assert.equal(result?.roundsPassed, 0);
+      m.onLeave('p_0');
+      await Promise.race([out.end, giveUp(10_000)]);
+      assert.equal(out.sent.filter(([, msg]) => msg.t === 'm.result').length, 1);
+      m.dispose();
+    } finally { hosts.close(); }
+  }
+});
+
 describe('match hosts (P1c): a content set\'s matches in a match host of its own', () => {
   test('the transport: a child process by default; a worker thread only with SP_MATCH_HOST=worker', { timeout: 60_000 }, async () => {
     const was = process.env.SP_MATCH_HOST;

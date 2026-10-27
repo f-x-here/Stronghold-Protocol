@@ -16,6 +16,7 @@ import { isShopItem } from '../sim/simdata.js';
 import { mergeData } from '../../shared/plugins/dataUtils.js';
 import { standInRecord } from '../../shared/standIn.js';
 import { MAX_OFFER_SLOTS } from './player/common.js';
+import { MAX_SEATS } from '../../shared/constants.js';
 
 const own = (map, id) => (map && typeof map === 'object' && typeof id === 'string' && Object.hasOwn(map, id) && map[id] && typeof map[id] === 'object' ? map[id] : null);
 const numOr = (v, d) => (typeof v === 'number' && Number.isFinite(v) ? v : d);
@@ -63,9 +64,9 @@ export const COMBAT_TIME_SCALE = 2;
  *   solo   `solo` (1: the table value — one player's share);
  *   co-op  `perPlayer` true (the owner's decision of 2026-10-06, adopting PR #209 by @qingjingshenghuo): `coop` (1) × the
  *          players alive when the fight starts — bots and AI 托管 seats count, eliminated and departed seats do not —
- *          at most `aliveFull` (4); a count left out means a full team;
+ *          including larger rooms up to MAX_SEATS (20); a count left out means `aliveFull` (4);
  *          `perPlayer` false: the fixed pool of 0.1.x (「保持固定血量」, restorable with `solo` 0.25): `coop` whatever the
- *          count, × min(alive, aliveFull) / aliveFull with `aliveScaling`.
+ *          count, × alive / aliveFull with `aliveScaling`.
  * @param {object|null|undefined} modeScale config.modes[modeId].bossHpScale
  * @param {object|null|undefined} cfgScale config.bossHpScale
  * @param {boolean} isSolo
@@ -80,7 +81,7 @@ export function bossPoolShareOf(modeScale, cfgScale, isSolo, aliveCount) {
   if (isSolo) return pick('solo', 1);
   const full = Math.max(1, Math.floor(pick('aliveFull', 4)));
   const n = Number(aliveCount);
-  const alive = Number.isFinite(n) && n >= 1 ? Math.min(full, Math.floor(n)) : full;
+  const alive = Number.isFinite(n) && n >= 1 ? Math.min(MAX_SEATS, Math.floor(n)) : Math.min(MAX_SEATS, full);
   if (flag('perPlayer', true)) return pick('coop', 1) * alive;
   return pick('coop', 1) * (flag('aliveScaling', false) ? alive / full : 1);
 }
@@ -360,6 +361,13 @@ export class GameData {
   get bossRound() { return Number.isInteger(this.mode.bossRound) && this.mode.bossRound > 0 ? this.mode.bossRound : this.lastRound; }
   get hiddenRound() { return Number.isInteger(this.mode.hiddenRound) && this.mode.hiddenRound > 0 ? this.mode.hiddenRound : null; }
   get maxShopLevel() { return posIntOr(this.mode.maxShopLevel, DEFAULTS.maxShopLevel); }
+
+  isEndlessBossRound(r) { return false; } // eslint-disable-line no-unused-vars
+  isHiddenRound(r) { return r === this.hiddenRound; }
+  isBossRound(r) { return r === this.bossRound || this.isHiddenRound(r); }
+  bossRoundFor(r) { return this.bossRound; } // eslint-disable-line no-unused-vars
+  bossHpScale(r) { return 1; } // eslint-disable-line no-unused-vars
+  sourceRound(r) { return r; }
 
   roundCfg(r) {
     const rounds = this.mode.rounds;

@@ -365,3 +365,20 @@ layout search inside the five-hook contract; `ioleta-adaptive` composes Russell-
 variants and contact repairs extend the list up to eight. Extension stops after a clean completed zero-leak result,
 or at a strict six-times-per-candidate total tick cap. Server and host Worker share RehearsalRun, limits and counters.
 Default legacy rules remain the baseline. See [BOT_STRATEGIES](../BOT_STRATEGIES.md).
+
+### User-requested 20-seat and endless source extension (v0.3.3 fork)
+
+This fork deliberately extends the official four-seat mode: room capacities are 4/8/10/16/20 (default 8).
+From six players, permanent seat-ordered groups have independent shared chess/item stock and parallel strategy /
+six-card contingency drafts. Twenty players form five groups of four. Manual online players pick before AI,
+autoplay and disconnected seats. Unite has up to five passes and a strict-majority vote to skip later passes.
+
+The host can opt into endless play before starting. It preserves the campaign, lineup, economy and layers, then
+cycles the last three normal wave templates and repeats the leader every 15 endless rounds. [ASSUMED] Custom
+balance multiplies late-game HP by 1 + 0.15n and ATK by 1 + 0.08n, without changing counts, speed or timing.
+Endless removes bond bans. Each leader win adds one actual deployment slot for participating living players;
+this is applied after minimum/bonus capacity. Voluntary exit emits an authoritative personal result; teammates continue.
+
+The original plugin API cannot change room capacity or the match lifecycle. Installation and update conflict
+checks live in [the source extension](../../extensions/20p-endless/README.md); ordinary plugin content and the
+v0.3.3 version/offer/skin APIs remain available. These rules are custom, not official balance.

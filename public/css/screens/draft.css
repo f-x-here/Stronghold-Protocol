@@ -388,3 +388,14 @@
   .modal__box.minfo-dlg { width: min(max(12rem, 32px, calc(600px * var(--sp-ui, 1))), calc(100vw - .6rem - var(--sa-l, 0px) - var(--sa-r, 0px))); }
   .minfo-dlg__content.has-enemies { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* Parallel fixed-pool draft pages retain the upstream OrderRow presentation. */
+.draft-order__group { display: flex; flex-direction: column; gap: 6px; }
+.draft-order__group[data-group] { border-left: 3px solid var(--pool-group-color, transparent); padding-left: 6px; }
+.pool-group-label { color: var(--pool-group-color); font-size: calc(.15 * var(--t)); }
+.dband__group { display: inline-block; padding: 2px 5px; border: 1px solid var(--pool-group-color); color: var(--pool-group-color); font-size: calc(.13 * var(--t)); }
+.spov__groups { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0; }
+.spov__group-tab { display: flex; align-items: center; gap: 6px; padding: 6px 10px; border: 1px solid var(--pool-group-color); color: #eef0ef; background: #202927; font: inherit; }
+.spov__group-tab.is-active { background: #3d5049; }
+.spov__group-tab.is-own { box-shadow: inset 0 -3px var(--pool-group-color); }
+.spov__readonly { color: #dfc983; font-size: calc(.16 * var(--t)); }

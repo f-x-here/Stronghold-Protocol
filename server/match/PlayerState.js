@@ -231,6 +231,8 @@ export class PlayerState {
     this.round = { refreshes: 0, buys: 0, sells: 0, spent: 0, gainedChess: 0, arts: 0 };
     this.deployCapBonus = 0;
     this.deployCapMin = 0;
+    // User-requested endless Boss victories add actual deployment slots.
+    this.endlessDeployCapBonus = 0;
     this.deviceOverrides = {};
     this.tileOverrides = {};
     this.stats = {

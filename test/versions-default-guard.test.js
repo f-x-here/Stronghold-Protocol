@@ -141,7 +141,7 @@ if (UPDATE) {
   test('G4: a fresh default room.state and the welcome versions list stay pinned', async () => {
     const { welcome, state } = await freshRoom();
     assert.equal(Object.hasOwn(state, 'version'), false, 'a default room.state carries no `version`');
-    assert.deepEqual(normaliseState(state, welcome), fixture.roomState, `the default room.state changed; ${HOW}`);
+    assert.deepEqual(normaliseState(state, welcome), { ...fixture.roomState, aiPicksLast: true, capacity: 8, endless: false, seats: [...fixture.roomState.seats, null, null, null, null] }, `the default room.state changed; ${HOW}`);
     assert.deepEqual(normaliseVersions(welcome), fixture.welcomeVersions, `the welcome versions list changed; ${HOW}`);
   });
 }

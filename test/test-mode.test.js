@@ -580,10 +580,10 @@ test('host migration, spectators, rate bounds and audit results cannot mutate an
   for (const row of result.players) { assert.equal(row.title, null); assert.equal(row.trophies, 0); assert.equal(row.reward, 0); }
 });
 
-test('test journal re-simulates real inputs, timer order, RNG, public/private views and result', () => {
+for (const endless of [false, true]) test(`test journal re-simulates inputs, timers, RNG and results (endless=${endless})`, () => {
   const scheduler = new VirtualScheduler();
   const entries = [];
-  const m = new Match({ mode: 'solo', difficulty: 'NORMAL', test: true, hostId: 'p', seed: 832,
+  const m = new Match({ mode: 'solo', difficulty: 'NORMAL', endless, test: true, hostId: 'p', seed: 832,
     seats: [{ playerId: 'p', seat: 0, name: 'P', connected: true }], data: DATA, scheduler,
     send() {}, broadcast() {}, onEnd() {}, clientCombat: false, botRehearsal: 0, log: { info(line) { if (line.startsWith('[test-input ')) entries.push(JSON.parse(line.slice(line.indexOf(']') + 2))); } },
   });
@@ -604,6 +604,7 @@ test('test journal re-simulates real inputs, timer order, RNG, public/private vi
   assert.equal(m.ended, true);
   assert.equal(m.lastResultMsg.testActions, m.testActions);
   const copy = replayTestMatch(DATA, entries);
+  assert.equal(copy.endless, endless);
   assert.deepEqual(copy.publicView(), m.publicView());
   assert.deepEqual(copy.players.get('p').privateView(), m.players.get('p').privateView());
   assert.deepEqual(buildResult(copy, { victory: false }), buildResult(m, { victory: false }));
@@ -688,6 +689,24 @@ test('co-op band timer is held and cannot fire a stale draft callback after a ph
   assert.equal(h.m.phase, 'BATTLE_CHECK');
   ok(h.m.handle('p_0', { t: 'g.test', cmd: 'phase', args: { name: 'advance' } }));
   assert.equal(h.m.phase, 'ROUND_START');
+});
+
+test('twenty-seat test rooms hold and independently advance parallel draft timers', (t) => {
+  const h = makeMatch({ test: true, mode: 'coop', humans: 20 });
+  t.after(() => h.m.dispose());
+  h.start();
+  for (const ps of h.m.order) ok(h.m.handle(ps.playerId, { t: 'g.infoReady' }));
+  h.sched.runUntil(() => h.m.phase === 'BAND_DRAFT');
+  assert.equal(h.m.draft.groups.length, 5);
+  ok(h.m.handle('p_0', { t: 'g.test', cmd: 'timers', args: { on: false } }));
+  h.sched.advance(60000);
+  assert.equal(Object.keys(h.m.draft.picks).length, 0);
+  ok(h.m.handle('p_0', { t: 'g.test', cmd: 'phase', args: { name: 'advance' } }));
+  assert.equal(Object.keys(h.m.draft.picks).length, 1);
+  ok(h.m.handle('p_0', { t: 'g.test', cmd: 'timers', args: { on: true } }));
+  assert.ok(h.m.draft.groups.every(g => g.turnDeadline > h.sched.now()));
+  h.sched.advance(60000);
+  assert.ok(Object.keys(h.m.draft.picks).length > 1);
 });
 
 import { decodeTestTrace } from '../server/match/testReplay.js';

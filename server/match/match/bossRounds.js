@@ -6,6 +6,7 @@
 // Installed on Match.prototype by server/match/Match.js (a method container: never instantiated; `this` is the match).
 
 import { PHASE, GEO } from '../../../shared/constants.js';
+import { msg } from '../../../shared/i18n.js';
 import { createRng, deriveSeed } from '../../sim/rng.js';
 import { creditedKillsOf } from '../../sim/spec.js';
 import { buildBossWave, bountySpawns } from '../waves.js';
@@ -48,7 +49,7 @@ export class MatchBoss {
     // the pool's own per-player tally, one pool per boss round. stats.bossDamage (the result's 领袖伤害) adds up both
     // rounds, so it would credit the Final Assault's damage to the hidden leader ("隐藏boss还没打就出了50%播报").
     const hitSteps = new Map();
-    const pool = new SharedBossPool(bossPoolHp(this.gd, bossId, alive.length), {
+    const pool = new SharedBossPool(Math.max(1, Math.round(bossPoolHp(this.gd, bossId, alive.length) * this.gd.bossHpScale(this.round))), {
       onHit: (pid, dmg) => {
         const ps = this.players.get(pid);
         if (!ps) return;
@@ -519,6 +520,19 @@ export class MatchBoss {
 
   _finalDone(runner, hidden) { this._finishFinal(hidden, (f) => runner.resultOf(f)); }
 
+  /** One permanent slot per surviving participant, once per won boss round in an endless match. */
+  _rewardEndlessBossDeploy() {
+    if (!this.endless || this._endlessDeployRewardRound === this.round) return;
+    this._endlessDeployRewardRound = this.round;
+    const participants = new Set(this.fields.flatMap(f => f.players));
+    for (const ps of this.alivePlayers()) {
+      if (ps.left || ps.lp <= 0 || !participants.has(ps.playerId)) continue;
+      ps.endlessDeployCapBonus++;
+      ps.dirty();
+      this.toast(ps, 'success', msg('击败领袖，部署上限 +1（当前 {n}）', { n: ps.deployCap }));
+    }
+  }
+
   /** Every boss field is over: stats, bounties, then the Hidden Core or RESULT. */
   _finishFinal(hidden, resultOf) {
     if (this.phase !== (hidden ? PHASE.HIDDEN_CORE : PHASE.FINAL_ASSAULT)) return;
@@ -553,12 +567,13 @@ export class MatchBoss {
       }
     }
     this._syncTeamLp();
+    if (victory) this._rewardEndlessBossDeploy();
     this.deadline = 0;
     this.overtimeAt = 0;
     this.markPublic();
     this.runner = null;
     if (!hidden) {
-      const eligible = victory && !!this.hiddenBossId && hiddenEligible(this.gd, { layerSum: this.hiddenLayerSum, teamLp: this.teamLp });
+      const eligible = victory && this.round === this.gd.bossRound && !!this.hiddenBossId && hiddenEligible(this.gd, { layerSum: this.hiddenLayerSum, teamLp: this.teamLp, playerCount: this.alivePlayers().length });
       this.later(this.scaled(DELAYS.SETTLE), () => {
         if (eligible) {
           this.hiddenReached = true;
@@ -566,11 +581,15 @@ export class MatchBoss {
           this.tickerText('隐秘核心已解锁', FLOW_TICKER_PRIORITY);
           this.startRound(this.gd.hiddenRound);
         } else {
-          this.finish({ victory, reason: victory ? 'victory' : 'defeat' });
+          if (victory && this.endless) this.continueEndless();
+          else this.finish({ victory, reason: victory ? 'victory' : 'defeat' });
         }
       });
     } else {
-      this.later(this.scaled(DELAYS.SETTLE), () => this.finish({ victory: true, hiddenCleared: victory, reason: 'victory' }));
+      this.later(this.scaled(DELAYS.SETTLE), () => {
+        if (this.endless && victory) this.continueEndless(true);
+        else this.finish({ victory: !this.endless, hiddenCleared: victory, reason: this.endless ? 'defeat' : 'victory' });
+      });
     }
   }
 }

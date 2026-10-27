@@ -430,6 +430,24 @@ const exhaustItem = (h, id) => {
   assert.equal(h.m.itemPool.canGain(id), false);
 };
 
+test('plugin equipment windows use the requesting fixed group stock', (t) => {
+  const item = 'chess_item_5_07_e_a';
+  const h = matchWith([stockOffer({ item })], { fake: true, humans: 7, bots: 0 });
+  t.after(() => h.m.dispose());
+  h.start(); h.toPrep(1);
+  exhaustItem(h, item);
+  h.m.openOfferWindow('prep', 3);
+  const w = h.m.offerWin[0];
+  const a = h.ps('p_0'), b = h.ps('p_4');
+  const idx = (ps) => w.options.get(ps.playerId).findIndex(card => card.id === 'grant');
+  assert.equal(h.m.handle(a.playerId, intent(w, idx(a))).error, 'BAD_TARGET');
+  assert.equal(w.picks.has(a.playerId), false);
+  const before = h.m.itemPoolFor(b).left(item);
+  assert.deepEqual(h.m.handle(b.playerId, intent(w, idx(b))), { ok: true });
+  assert.equal(h.m.itemPoolFor(b).left(item), before - 1);
+  assert.equal(h.m.itemPoolFor(a).left(item), 0);
+});
+
 for (const [kind, id] of [['chess', 'chess_char_5_diy1_a'], ['item', 'chess_item_1_01_e_a']]) {
   test(`unavailable ${kind} stays unpicked and another option remains selectable`, () => {
     const offer = stockOffer({ [kind]: id });

@@ -275,7 +275,7 @@ export class MatchTestCommands {
       if (this.phase === PHASE.ROUND_START) { this.setDeadline(0); this.enterPrep(); return OK; }
       if (this.phase === PHASE.SP_DRAFT) {
         const s = this.sp;
-        if (s && s.order.some((id) => s.picks[id] == null)) return fail(ERR.WRONG_PHASE);
+        if (s && s.groups.some(g => g.order.some(id => s.picks[id] == null))) return fail(ERR.WRONG_PHASE);
         this.finishSpDraft();
         return OK;
       }
@@ -296,6 +296,14 @@ export class MatchTestCommands {
   }
 
   _testAdvance() {
+    const stage = this.phase === PHASE.BAND_DRAFT ? this.draft : this.phase === PHASE.SP_DRAFT ? this.sp : null;
+    if (stage?.groups.length > 1) {
+      const group = stage.groups.find(g => !g.done && typeof g.testExpire === 'function');
+      if (!group) return fail(ERR.WRONG_PHASE);
+      this.cancel(group.timer);
+      group.testExpire();
+      return OK;
+    }
     const held = this._testHeld;
     if (!held || typeof held.fn !== 'function') return fail(ERR.WRONG_PHASE);
     this._testHeld = null;
@@ -330,6 +338,21 @@ export class MatchTestCommands {
     }
     if (this.phase === PHASE.LOBBY || this.phase === PHASE.RESULT) return fail(ERR.WRONG_PHASE);
     if (on === this.testTimers) return OK;
+    const stage = this.phase === PHASE.BAND_DRAFT ? this.draft : this.phase === PHASE.SP_DRAFT ? this.sp : null;
+    if (stage?.groups.length > 1) {
+      this.testTimers = on;
+      for (const group of stage.groups) {
+        this.cancel(group.timer);
+        group.timer = null;
+        group.turnDeadline = 0;
+        if (!group.done && typeof group.testExpire === 'function' && on) {
+          group.turnDeadline = this.sched.now() + group.testMs;
+          this.armDraftGroupTimer(group, group.testMs, group.testExpire);
+        }
+      }
+      this.markPublic();
+      return OK;
+    }
     if (on) {
       const held = this._testHeld;
       this.testTimers = true;

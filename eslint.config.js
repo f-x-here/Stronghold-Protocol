@@ -48,7 +48,7 @@ const nodeFiles = [
   'server/**/*.js',
   'shared/**/*.js',
   'tools/**/*.js',
-  'tools/**/*.mjs',
+  'tools/**/*.mjs', 'extensions/**/*.mjs',
   'scripts/**/*.js',
   'scripts/**/*.mjs',
   'types/**/*.js',
@@ -57,6 +57,7 @@ const nodeFiles = [
 export default [
   {
     ignores: [
+      '20人卫戍-Update/**',
       'node_modules/**',
       'public/vendor/**',
       'public/assets/**',

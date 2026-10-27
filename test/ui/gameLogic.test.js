@@ -16,6 +16,17 @@ import {
   activeBubbles, sortedPlayers, tileKey, prepCapsuleLabel, prepCamera, dropFailureReason, terrainInfo,
 } from '../../public/js/ui/gameLogic.js';
 import { PHASE, GEO } from '../../shared/constants.js';
+import { disabledBondSets, modeOffBonds } from '../../public/js/ui/gameLogic.js';
+
+test('endless bond indicators ignore both fixed and random bans while ordinary modes retain them', () => {
+  const mode = { inactiveBondIds: ['arcaneShip'] };
+  const pub = { endless: true, drawnDisabledBonds: ['yanShip'], disabledBonds: ['arcaneShip', 'yanShip'] };
+  assert.deepEqual([...modeOffBonds(mode, pub)], []);
+  assert.deepEqual([...disabledBondSets(pub, mode.inactiveBondIds).off], []);
+  assert.deepEqual([...disabledBondSets(pub, mode.inactiveBondIds).drawn], []);
+  assert.deepEqual([...modeOffBonds(mode)], ['arcaneShip']);
+  assert.deepEqual([...disabledBondSets({ ...pub, endless: false }, mode.inactiveBondIds).drawn], ['yanShip']);
+});
 import { setLang, setMessages } from '../../shared/i18n.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');

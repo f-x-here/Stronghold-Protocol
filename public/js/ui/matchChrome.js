@@ -2,7 +2,7 @@
 // difficulty | "1/2 确认本局信息" | countdown) and the exit flow (confirm with 暂离 / 放弃, AI 托管 overlay).
 //
 // 暂离 (co-op): turns on AI 托管 (g.autoplay on) so the seat keeps playing; the overlay's 返回模拟 turns it
-// off. 放弃模拟: g.leave then room.leave (the platform treats it as a quit), back to the lobby.
+// off. 放弃模拟: g.leave then room.leave. Endless leaves retain the server snapshot for settlement.
 
 import { useState } from '../../vendor/hooks.module.js';
 import { html, Button, Modal, PingPill, DifficultyTag, Countdown, MicroLabel } from './components.js';
@@ -39,7 +39,8 @@ export const awayEnds = (s, prev) => (!!prev?.match?.public && !s?.match?.public
 store.subscribe((s, prev) => { if (awayStore.get().away && awayEnds(s, prev)) awayStore.set({ away: false }); });
 
 /**
- * Leave the match for good (g.leave → room.leave), then drop local room/match state. The server sends a leaver no
+ * Leave the match for good (g.leave → room.leave). Endless retains its server result snapshot; ordinary matches drop state.
+ * For ordinary matches the server sends a leaver no
  * settlement, so the page records the match itself before it is cleared (本机统计, ui/stats.js recordQuit: a 中途退出
  * entry of the history; it counts only when a round had been cleared) — once the leave went through.
  * @returns {Promise<void>}
@@ -60,7 +61,13 @@ export async function quitMatch() {
     if (left && !store.get().match.result) {
       try { recordQuit(before); } catch (err) { console.warn('[stats] quit record failed', err); }
     }
-    store.set({ room: null, match: emptyMatch() });
+    if (left) {
+      const result = store.get().match.result;
+      const endless = before.match.public?.endless && !isSpectating(before.room, before.me.playerId);
+      store.set({ room: null, match: endless && result
+        ? { ...emptyMatch(), public: { ...before.match.public, phase: 'RESULT' }, result }
+        : emptyMatch() });
+    }
   }
 }
 
@@ -71,6 +78,7 @@ export async function quitMatch() {
 export function ExitModal({ open, onClose, solo, onAway }) {
   const [busy, setBusy] = useState(null);
   // a spectator seat (community report #26) only leaves its seat: nothing of the match is given up
+  const endless = useStore((s) => !!s.match.public?.endless);
   const spectator = useStore((s) => isSpectating(s.room, s.me.playerId));
   const quit = async () => {
     setBusy('quit');
@@ -96,9 +104,9 @@ export function ExitModal({ open, onClose, solo, onAway }) {
     actions=${html`
       <${Button} variant="secondary" onClick=${onClose}>${t('取消')}<//>
       ${!solo ? html`<${Button} variant="ice" icon="robot" loading=${busy === 'away'} onClick=${away}>${t('暂离（AI 托管）')}<//>` : null}
-      <${Button} variant="danger" icon="exit" loading=${busy === 'quit'} onClick=${quit}>${t('放弃模拟')}<//>`}>
+      <${Button} variant="danger" icon="exit" loading=${busy === 'quit'} onClick=${quit}>${endless ? t('退出无尽并结算') : t('放弃模拟')}<//>`}>
     <div class="exitm">
-      ${solo
+      ${endless ? html`<p>${t('退出后展示本次无尽战报，其他队友继续模拟。')}</p>` : solo
         ? html`<p>${t(EXIT_TEXT.soloRest)}</p><p class="t-lo">${t(EXIT_TEXT.soloQuit)}</p>`
         : html`<p>${tParts('{away}：由 AI 托管你的席位（自动部署、准备与选择），随时可以返回。', { away: html`<b class="t-ice">${t('暂离')}</b>` })}</p>
                <p>${tParts('{quit}：离开后无法返回本局，你的干员将回到共享卡池。', { quit: html`<b class="t-red">${t('放弃模拟')}</b>` })}</p>`}

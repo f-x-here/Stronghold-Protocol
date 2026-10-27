@@ -116,6 +116,7 @@ export function ResultView({ res, pub = null, myId = null, backLabel, onBack, qu
   // [ASSUMED] Stored statistics have no outfit snapshot: without pub, do not borrow a live match's choices.
   const gd = useGameData();
   const r = normalizeResult(res, pub);
+  const retired = r.endless && res?.reason === 'quit';
   const titles = Array.isArray(gd.config?.titles) ? gd.config.titles : [];
   const best = {};
   for (const [k] of STAT_ROWS) {
@@ -125,6 +126,7 @@ export function ResultView({ res, pub = null, myId = null, backLabel, onBack, qu
   }
   useEffect(() => { if (!quiet) audio.sfx(r.victory ? 'settlementSucceed' : 'settlementFail'); }, []);
   const boss = r.bossId ? gd.boss(r.bossId) : null;
+  const bossCleared = r.victory || (r.endless && r.roundsPassed >= r.lastRound);
   // the Hidden Core medal (and its corrupted leader) only once R15 was actually fought
   const hidden = r.hiddenBossId && r.hiddenReached ? gd.boss(r.hiddenBossId) : null;
   const bg = uiUrl(gd.m, r.victory ? 'settle/settlemen_teamshow_success' : 'settle/settlemen_teamshow_fail');
@@ -138,19 +140,20 @@ export function ResultView({ res, pub = null, myId = null, backLabel, onBack, qu
         <div class="result__summary">
         <div class="result__logo"><${Sprite} k="entry/season_logo_settle" class="result__logoimg" fallback=${html`<${MicroLabel} tone="mint">STRONGHOLD PROTOCOL</${MicroLabel}>`} /></div>
         ${r.difficulty ? html`<${DifficultyTag} difficulty=${r.difficulty} size="lg" />` : null}
-        <h1 class="result__headline">${r.victory ? t('模拟完成') : t('模拟失败')}</h1>
+        <h1 class="result__headline">${retired ? t('无尽模拟结束') : r.victory ? t('模拟完成') : t('模拟失败')}</h1>
         <${UnofficialMark} room=${content ? { content } : null} class="result__modmark" /><${VersionTag} version=${version} class="result__vertag" />
         ${res?.test === true ? html`<p class="result__test" data-testid="result-test"><${TestMark} /> ${t('测试对局')}${Number.isInteger(res.testActions) ? html` · ${t('测试指令 {n} 次', { n: res.testActions })}` : null}</p>
           <p class="t-dim">${t('本局为测试对局，不计入统计、成就、称号、徽章与卫戍认证。')}</p>` : null}
-        <p class="result__sub">${r.victory ? t('成功卫戍 · 敌方领袖已被击败') : t('防线已被突破')}</p>
+        <p class="result__sub">${retired ? t('已主动退出，以下为本次战报') : r.victory ? t('成功卫戍 · 敌方领袖已被击败') : t('防线已被突破')}</p>
+        ${r.endless ? html`<span>${t('无尽模式')}</span>` : null}
         <div class="result__rounds">
           <span class="result__rlabel">${t('通过回合')}</span>
           <b class="result__rnum num">${r.roundsPassed}</b>
-          ${r.roundsPassed <= r.lastRound ? html`<span class="result__rof num">/${r.lastRound}</span>` : null}
+          ${!r.endless && r.roundsPassed <= r.lastRound ? html`<span class="result__rof num">/${r.lastRound}</span>` : null}
         </div>
         <div class="result__medals">
-          ${boss ? html`<div class=${cx('medal', r.victory && 'is-done')} title=${boss.name}>
-            <${Img} src=${enemyIconUrl(gd.m, boss.enemyKey)} /><span class="medal__check">${r.victory ? html`<${Icon} name="check" />` : html`<${Icon} name="close" />`}</span>
+          ${boss ? html`<div class=${cx('medal', bossCleared && 'is-done')} title=${boss.name}>
+            <${Img} src=${enemyIconUrl(gd.m, boss.enemyKey)} /><span class="medal__check">${bossCleared ? html`<${Icon} name="check" />` : html`<${Icon} name="close" />`}</span>
             <span class="medal__label">${t('敌方领袖')}</span></div>` : null}
           ${hidden ? html`<div class=${cx('medal', 'medal--hidden', r.hiddenCleared && 'is-done')} title=${hidden.name}>
             <${Img} src=${enemyIconUrl(gd.m, hidden.enemyKey)} /><span class="medal__check">${r.hiddenCleared ? html`<${Icon} name="check" />` : html`<${Icon} name="close" />`}</span>

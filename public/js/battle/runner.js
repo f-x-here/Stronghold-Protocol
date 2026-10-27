@@ -86,6 +86,7 @@
 import { net as appNet } from '../net.js';
 import { store as appStore } from '../store.js';
 import { contentFor as appContentFor, simContent as appSimContent, contentSet as appContentSet } from '../content.js';
+import { MAX_SEATS } from '../../../shared/constants.js';
 import { fxForm } from '../../../shared/protocol.js';
 import { spectateEffects } from './observe.js';
 import { recordError, setBattleSource } from '../diag.js';
@@ -548,7 +549,7 @@ export function createBattleRunner(deps) {
     } else {
       msg.leaks = Math.min(1e6, p.leaks);
       // 联防: the leakers' enemies still standing (shared/protocol.js b.progress `left`, ≤ 4 players)
-      if (p.left) msg.left = Object.fromEntries(Object.entries(p.left).slice(0, 4));
+      if (p.left) msg.left = Object.fromEntries(Object.entries(p.left).slice(0, MAX_SEATS));
     }
     try { net.send('b.progress', msg); } catch { /* offline */ }
   }
@@ -564,13 +565,14 @@ export function createBattleRunner(deps) {
       try {
         result = e.host.compactResult({ bossLike: bossLike(e), battleId: e.battleId });
       } catch (err) { console.warn('[runner] result failed', err); recordError('runner', err, 'result failed'); }
+      e.deliveryType = result ? 'b.result' : 'b.yield';
       if (result) {
         e.result = result;
         // the view answers with the settlement voice of this battle (screens/game.js → audio.voice result*): the
         // compact result carries the leaks and the kill count the slot is picked from
         emit('result', { fieldId: e.fieldId, battleId: e.battleId, own: !!e.own, result });
-        deliver(e);
       }
+      deliver(e);
     }
     if (e === cur) publishState();
     else flushLeaks();
@@ -582,16 +584,17 @@ export function createBattleRunner(deps) {
    * for redeliver() (session back online) and for an authoritative b.start of the finished battle.
    */
   function deliver(e) {
-    if (!net || !e.result || e.delivery === 'pending') return;
+    if (!net || (!e.result && e.deliveryType !== 'b.yield') || e.delivery === 'pending') return;
     e.delivery = 'pending';
     // a room's content set names itself in the result (DESIGN §32.6: the server refuses one without it) — the set the
     // battle was actually simulated on (its simulation's `cs`: loadBrowserSim's), never only what the spec claims; the
     // original content's result is what it always was
     const cs = e.sim && typeof e.sim.cs === 'string' && e.sim.cs ? e.sim.cs : null;
-    const msg = cs ? { battleId: e.battleId, result: e.result, cs } : { battleId: e.battleId, result: e.result };
+    const type = e.deliveryType || 'b.result';
+    const msg = type === 'b.yield' ? { battleId: e.battleId } : cs ? { battleId: e.battleId, result: e.result, cs } : { battleId: e.battleId, result: e.result };
     const send = (tries) => {
       let req;
-      try { req = net.request('b.result', msg, { timeout: 15000 }); } catch (err) { req = Promise.reject(err); }
+      try { req = net.request(type, msg, { timeout: 15000 }); } catch (err) { req = Promise.reject(err); }
       return Promise.resolve(req).then(() => { e.delivery = 'delivered'; dropRetained(e); }, (err) => {
         const code = err && err.code;
         if (code === 'TIMEOUT' && tries > 0) return send(tries - 1);
@@ -867,7 +870,7 @@ export function createBattleRunner(deps) {
       // run there. An in-page Battle gets the meter only when 作战统计 is on (default off; a test may pin it).
       if (metricsEnabled() && !e.host.remote) e.combatMetrics = trackCombat(battle);
       e.t0 = clock() - (e.elapsed / e.speed) * 1000;
-      if (lastPool) await e.host.syncPool(lastPool.hp, lastPool.acked ? lastPool.acked[e.fieldId] : undefined);
+      if (lastPool) await e.host.syncPool(lastPool.hp, lastPool.acked ? lastPool.acked[e.fieldId] : undefined, lastPool.max);
       if (e.endReason) await endBattle(e);
       // silent catch-up to the field's clock before it is shown (a reconnect / observing a running field) — for the view
       // asked for; a superseded authority catches up in the background (advance)
@@ -904,7 +907,7 @@ export function createBattleRunner(deps) {
     lastPool = msg;
     // a pending battle not built yet takes lastPool when it is built
     for (const e of [...entries.values(), ...pending.values()]) {
-      if (e.battle && !e.failed) e.host.syncPool(msg.hp, msg.acked ? msg.acked[e.fieldId] : undefined);
+      if (e.battle && !e.failed) e.host.syncPool(msg.hp, msg.acked ? msg.acked[e.fieldId] : undefined, msg.max);
     }
     emit('pool', msg);
   }

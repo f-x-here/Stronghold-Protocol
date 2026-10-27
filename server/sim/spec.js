@@ -232,7 +232,8 @@ export class LocalBossPool {
     return dealt;
   }
 
-  sync(serverHp, ackedCum) {
+  sync(serverHp, ackedCum, maxHp) {
+    if (Number.isFinite(maxHp) && maxHp > 0) this.maxHp = maxHp;
     const h = Number(serverHp);
     if (Number.isFinite(h)) this.serverHp = Math.max(0, Math.min(this.maxHp, h));
     const a = Number(ackedCum);
@@ -477,14 +478,15 @@ export const RESULT_FRAME_BUDGET = 60 * 1024;
  * @param {{ bossLike?: boolean, budget?: number, battleId?: string }} [o]
  */
 export function fitResult(result, { bossLike = false, budget = RESULT_FRAME_BUDGET, battleId = '' } = {}) {
-  const size = (r) => JSON.stringify({ t: 'b.result', battleId, result: r, rid: 2147483647 }).length;
+  const size = (r) => new TextEncoder().encode(JSON.stringify({ t: 'b.result', battleId, result: r, rid: 2147483647 })).length;
   if (!result || typeof result !== 'object' || size(result) <= budget) return result;
   const r = { ...result, perPlayer: {} };
   for (const [pid, p] of Object.entries(result.perPlayer || {})) r.perPlayer[pid] = { ...p, unitStats: [] };
   if (size(r) <= budget) return r;
+  if (!bossLike) return null;
   for (const p of Object.values(r.perPlayer)) p.leaked = (p.leaked || []).map((l) => ({ ...l, mods: null }));
-  if (size(r) <= budget || !bossLike) return r;
+  if (size(r) <= budget) return r;
   for (const p of Object.values(r.perPlayer)) p.leaked = [];
   if (Array.isArray(r.unspawned)) r.unspawned = [];
-  return r;
+  return size(r) <= budget ? r : null;
 }

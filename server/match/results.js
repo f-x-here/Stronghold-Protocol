@@ -92,7 +92,7 @@ export function buildResult(m, outcome) {
   const { victory, hiddenReached, hiddenCleared } = outcome;
   const players = [...m.players.values()].sort((a, b) => a.seat - b.seat);
   const titles = assignTitles(gd, players.filter(ps => !Number.isInteger(ps.aiTakeoverRound)), victory);
-  const teamRounds = victory ? gd.bossRound + (hiddenCleared ? 1 : 0) : Math.max(0, Math.min(m.round, gd.bossRound) - 1);
+  const teamRounds = m.endless ? Math.max(0, m.round - 1) : victory ? gd.bossRound + (hiddenCleared ? 1 : 0) : Math.max(0, Math.min(m.round, gd.bossRound) - 1);
   const rows = players.map((ps) => {
     const roundsPassed = !ps.alive && ps.eliminatedRound != null ? Math.max(0, ps.eliminatedRound - 1) : teamRounds;
     const lineup = boardOrder(ps.board).filter((x) => x.piece.kind === 'chess').map(({ r, c, piece }) => {
@@ -137,6 +137,7 @@ export function buildResult(m, outcome) {
   });
   const out = {
     t: 'm.result',
+    endless: m.endless,
     victory,
     roundsPassed: teamRounds,
     hiddenReached,

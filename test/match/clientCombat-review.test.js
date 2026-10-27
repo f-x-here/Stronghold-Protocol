@@ -516,11 +516,7 @@ test('fitResult: an oversized b.result is trimmed under the frame budget without
   const size = (r) => JSON.stringify({ t: 'b.result', battleId: 'b', result: r, rid: 2147483647 }).length;
   assert.ok(size(big) > 64 * 1024, `the sample is oversized (${size(big)})`);
   const fit = fitResult(big, { battleId: 'b' });
-  assert.ok(size(fit) <= RESULT_FRAME_BUDGET, `trimmed (${size(fit)})`);
-  assert.ok(isBattleResult(fit));
-  const p = fit.perPlayer.p;
-  assert.equal(p.leaked.length, 150, 'every leak kept (LP)');
-  assert.deepEqual([p.coins, p.layerGains, p.perfect, p.killed, p.total], [3, { yanShip: 4 }, false, 10, 400]);
+  assert.equal(fit, null, 'an unrepresentable normal result yields to server re-simulation without dropping leaks');
   assert.equal(big.perPlayer.p.unitStats.length, 160, 'the input is not mutated');
   const small = { ...big, perPlayer: { p: perPlayer() } };
   assert.equal(fitResult(small), small, 'a normal-size result passes unchanged');
