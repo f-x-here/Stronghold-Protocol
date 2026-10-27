@@ -99,11 +99,17 @@ export async function boardArtListed(assets) {
   return typeof u === 'string' && u.length > 0;
 }
 
+export function boardFetchOptions(url) {
+  // Content-hashed files are immutable; ordinary URLs retain their revalidation contract.
+  let pathname = '';
+  try { pathname = new URL(url, 'http://localhost').pathname; } catch { /* revalidate unknown URLs */ }
+  return { cache: /^\/(?:assets|media|fonts)\/~[0-9a-f]{16}\//.test(pathname) ? 'default' : 'no-cache' };
+}
 async function fetchText(url) {
-  try { const r = await fetch(url, { cache: 'no-cache' }); return r.ok ? await r.text() : null; } catch { return null; }
+  try { const r = await fetch(url, boardFetchOptions(url)); return r.ok ? await r.text() : null; } catch { return null; }
 }
 async function fetchJson(url) {
-  try { const r = await fetch(url, { cache: 'no-cache' }); return r.ok ? await r.json() : null; } catch { return null; }
+  try { const r = await fetch(url, boardFetchOptions(url)); return r.ok ? await r.json() : null; } catch { return null; }
 }
 
 /**
@@ -301,7 +307,7 @@ export function sceneGroupRects(chunks) {
 }
 
 async function fetchBuffer(url) {
-  try { const r = await fetch(url, { cache: 'no-cache' }); return r.ok ? await r.arrayBuffer() : null; } catch { return null; }
+  try { const r = await fetch(url, boardFetchOptions(url)); return r.ok ? await r.arrayBuffer() : null; } catch { return null; }
 }
 
 const sceneCache = new Map();

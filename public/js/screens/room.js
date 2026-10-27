@@ -75,6 +75,7 @@ import { settingsStore } from '../ui/settingsStore.js';
 import { difficultyInfo, ProtocolSelect } from './lobby.js';
 import { useRise } from '../ui/transitions.js';
 import { t, tc } from '../../../shared/i18n.js';
+import { warmFieldResources } from '../ui/fieldHost.js';
 
 /**
  * Seats padded to the room's capacity (co-op 4, solo 1), each null or a seat record.
@@ -477,6 +478,7 @@ const PROPOSE_RETRY_MS = 1200;
 /** Room screen component. */
 export function RoomScreen() {
   const room = useStore((s) => s.room);
+  useEffect(() => { if (room?.code) void warmFieldResources(); }, [room?.code]);
   const me = useStore((s) => s.me, shallowEqual);
   const conn = useStore((s) => s.connection, shallowEqual);
   const [busy, setBusy] = useState(null);

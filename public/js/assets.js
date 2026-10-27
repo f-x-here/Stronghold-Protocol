@@ -9,11 +9,11 @@
 //
 // Spine memory policy (phones have little memory; a parsed skeleton holds ~0.1–12 MB, `spineDataWeight`):
 //   * a skeleton a view references is never evicted;
-//   * idle (unreferenced) skeletons are kept up to SPINE_IDLE_BYTES while a scene is on screen, each safe for
-//     SPINE_IDLE_GRACE_MS after its release (a prep ⇄ battle switch takes its models back); beyond the budget the least
+//   * idle (unreferenced) skeletons use the bounded device tier of spineCachePolicy (the SPINE_* constants are
+//     the low-memory defaults), each safe for its configured grace after release (a prep ⇄ battle switch takes its models back); beyond the budget the least
 //     recently used go, in one pass SPINE_EVICT_DELAY_MS after the release;
 //   * quiet — no scene on screen (lobby, room, result: nothing referenced and no scene holding the cache for
-//     SPINE_QUIET_DELAY_MS) — every idle skeleton goes after its grace: the memory goes back to the phone;
+//     the configured quiet delay) — a desktop keeps a small warm set; a low-memory device drains idle skeletons;
 //   * a match view in battle mode holds the cache (`spine.hold()`, render/app.js): its battle views are built in
 //     animation frames, which a hidden tab does not run, so a battle that began in a background tab referenced nothing
 //     and the quiet budget emptied the cache ≈ 18 s later — back in the tab every unit was an avatar diamond until its
@@ -781,6 +781,18 @@ export const SPINE_IDLE_GRACE_MS = 15000;
 export const SPINE_EVICT_DELAY_MS = 1000;
 /** Nothing referenced (and no scene holding the cache) for this long = no scene on screen (lobby / room): the idle skeletons may all go. */
 export const SPINE_QUIET_DELAY_MS = 3000;
+
+/** Bounded desktop retention across reconnects and teammate/observer switches. Low-memory devices keep upstream limits. */
+export function spineCachePolicy(device = typeof document === 'undefined' ? undefined : globalThis.navigator) {
+  const memory = Number(device?.deviceMemory) || 0;
+  const cores = Number(device?.hardwareConcurrency) || 0;
+  if (memory >= 8 && cores >= 8) return { max: 240, idleBytes: 192 * 1024 * 1024,
+    quietBytes: 64 * 1024 * 1024, idleGrace: 120000, quietDelay: 60000 };
+  if (memory >= 4 || (!memory && cores >= 4)) return { max: 96, idleBytes: SPINE_IDLE_BYTES,
+    quietBytes: 16 * 1024 * 1024, idleGrace: 60000, quietDelay: 30000 };
+  return { max: 60, idleBytes: SPINE_IDLE_BYTES, quietBytes: 0,
+    idleGrace: SPINE_IDLE_GRACE_MS, quietDelay: SPINE_QUIET_DELAY_MS };
+}
 /** Waits (ms) before the manifest is fetched again within one `ready()` after a transient failure (like data.js). */
 export const MANIFEST_RETRY_MS = Object.freeze([600, 2000]);
 /** Waits (ms) before the store tries again by itself after a `ready()` whose fetches all failed transiently. */
@@ -818,6 +830,7 @@ const transientFetch = (err) => {
  */
 export function createAssets(options) {
   const opts = options && typeof options === 'object' ? options : {};
+  const policy = spineCachePolicy();
   const layers = opts.cosmetics && typeof opts.cosmetics.apply === 'function' ? opts.cosmetics : null;
   const url = opts.url || '/data/assets.json';
   const localUrl = opts.localUrl || '/data/local-assets.json';
@@ -918,7 +931,7 @@ export function createAssets(options) {
       // the promise (when the unloader returns one) holds back a new load of this skeleton until it has settled
       return (opts.unloadSpine || unloadSpineData)(e, value, keep);
     },
-    max: opts.spineMax ?? 60,
+    max: opts.spineMax ?? policy.max,
     timeout: opts.spineTimeout ?? 20000,
     concurrency: opts.spineConcurrency ?? 6,
     // memory budget (a parsed skeleton holds ~0.1–12 MB): idle skeletons beyond SPINE_IDLE_BYTES go, and all of
@@ -926,10 +939,10 @@ export function createAssets(options) {
     // battle mode holds the cache — see the header), each after a grace that covers a prep ⇄ battle switch; evictions
     // run SPINE_EVICT_DELAY_MS after the release that allows them (a scene switch takes its models back first)
     weigh: opts.spineWeigh || ((key, value) => spineDataWeight(value)),
-    maxIdleWeight: opts.spineIdleBytes ?? SPINE_IDLE_BYTES,
-    quietWeight: opts.spineQuietBytes ?? 0,
-    idleGrace: opts.spineIdleGrace ?? SPINE_IDLE_GRACE_MS,
-    quietDelay: opts.spineQuietDelay ?? SPINE_QUIET_DELAY_MS,
+    maxIdleWeight: opts.spineIdleBytes ?? policy.idleBytes,
+    quietWeight: opts.spineQuietBytes ?? policy.quietBytes,
+    idleGrace: opts.spineIdleGrace ?? policy.idleGrace,
+    quietDelay: opts.spineQuietDelay ?? policy.quietDelay,
     evictDelay: opts.spineEvictDelay ?? SPINE_EVICT_DELAY_MS,
     timers: opts.spineTimers,
     now: opts.spineNow,

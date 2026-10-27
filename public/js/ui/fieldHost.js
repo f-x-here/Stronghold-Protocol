@@ -225,6 +225,21 @@ export function seedAssets(store) {
   give('local', store.seedLocal?.bind(store));
 }
 
+/** Warm only installed board/stage resources, sharing the renderer's promises; never create a renderer or load every team's models. */
+export async function warmFieldResources(stageId = null) {
+  if (renderPref() === 'fallback' || globalThis.navigator?.connection?.saveData) return null;
+  const board = new URLSearchParams(globalThis.location?.search || '').get('board');
+  if (board === '2d') return null;
+  try {
+    const [{ assets }, loader] = await Promise.all([import('../assets.js'), import('../render/board3d/load.js')]);
+    seedAssets(assets);
+    if (!loader.webgl2Available(board === '3d') || !await loader.boardArtListed(assets)) return null;
+    const results = await Promise.all([loader.loadThree(), loader.loadBoardPack(assets),
+      stageId ? loader.loadScenePack(assets, stageId) : Promise.resolve(null)]);
+    return { board: results[1], scene: results[2] };
+  } catch { return null; }
+}
+
 /**
  * Create a field view in `host`: the render engine when available, else the DOM fallback.
  * @param {HTMLElement} host

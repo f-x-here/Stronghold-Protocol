@@ -10,7 +10,7 @@ import vm from 'node:vm';
 const sourcePath = new URL('../../public/js/ui/fieldHost.js', import.meta.url);
 const source = readFileSync(sourcePath, 'utf8')
   .replace(/^import .*;$/gm, '').replace(/^export /gm, '')
-  .replace("import('../assets.js')", 'importAssets()')
+  .replaceAll("import('../assets.js')", 'importAssets()')
   .replace("import('../render/app.js')", 'importApp()');
 const METHODS = ['setStage', 'setCamera', 'setPrep', 'enterBattle', 'pushSnapshot', 'pushEvents', 'highlightTiles', 'on', 'resize'];
 const flush = async () => { for (let i = 0; i < 16; i++) await Promise.resolve(); };

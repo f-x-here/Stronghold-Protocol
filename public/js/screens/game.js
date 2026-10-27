@@ -86,7 +86,7 @@ import { PHASE, GEO } from '../../../shared/constants.js';
 import { ruleOption } from '../../../shared/plugins/rules.js';
 import { html, Spinner, PhaseBanner, ResultDialog, Icon, Button, confirmDialog, closeAllDialogs, useTicker } from '../ui/components.js';
 import { useGameData, GIcon } from '../ui/gameComponents.js';
-import { useFieldView } from '../ui/fieldHost.js';
+import { useFieldView, warmFieldResources } from '../ui/fieldHost.js';
 import { TopBar, liveLp, ownLeaks, uniteRemaining, tempInfo, tempReadyReason } from '../ui/hud.js';
 import { BondStrip, BondPopup } from '../ui/bondStrip.js';
 import { TeamPanel } from '../ui/teamPanel.js';
@@ -237,6 +237,7 @@ function MatchScreen() {
   useDocClass('sp-in-match');
   useEffect(() => { preloadPopupArt(); }, []);
   const pub = useStore((s) => s.match.public);
+  useEffect(() => { if (pub?.stageId) void warmFieldResources(pub.stageId); }, [pub?.stageId]);
   const priv = useStore((s) => s.match.private);
   const field = useStore((s) => s.match.field);
   const myId = useStore((s) => s.me.playerId);

@@ -869,3 +869,23 @@ each selected bank separately; `attacks`/`hits` and `attackMix`/`hitMix` use mat
 manifest instead of importing an older PR's full JSON, preserving JP voices and current operators. See DESIGN §34.3.
 
 The 40th local token model is the original champagne bomb (`token_10031_swire2_gdtrap`, §29.5), extracted from the official `btl_pfb_tokens_0.ab` through `TOKEN_SPINES`. Its web fallback is retained. Failed board-pack/image requests can retry after connectivity/visibility recovers; a failed three.js module gets at most two fresh-URL retries per page because browser module failures are cached. Successful resources remain cached.
+
+
+## 本地 20 人资源缓存修复（2026-10-27）
+
+`public/js/assets.js` 的 `spineCachePolicy` 为支持设备能力查询的浏览器分档，保留有界的页面内模型缓存：
+
+| 设备 | 模型数上限 | 闲置预算 | 离开场景后的保留预算 | 保护期 / 静默判定 |
+|---|---:|---:|---:|---:|
+| RAM ≥8 GiB 且线程 ≥8 | 240 | 192 MiB | 64 MiB | 120 秒 / 60 秒 |
+| RAM ≥4 GiB；或内存未知且线程 ≥4 | 96 | 48 MiB | 16 MiB | 60 秒 / 30 秒 |
+| 低内存或能力未知 | 60 | 48 MiB | 0 | 15 秒 / 3 秒 |
+
+低内存设备和无浏览器环境保留上游限制。活跃引用不回收，正在卸载的模型必须等待卸载结束后才重新加载，沿用上游的安全约束。
+超过上限、长时间闲置或页面销毁仍会回收；不承诺无限内存常驻。缓存键仍是实际资源 URL，因此原版、皮肤及内容更新不会串用。
+
+房间预热已安装的棋盘，进入对局预热当前关卡；共享渲染器原有的加载 Promise，不创建渲染器、不批量拉取所有队友模型。
+显式 2D、简化渲染、省流量模式及无 WebGL2 的设备跳过预热。内容哈希棋盘文件使用正常 HTTP 缓存；无哈希的可变文件保留重新验证。
+
+断线后同一页面可复用仍在预算内的解析模型。刷新/重开页面会重新解析模型，但同一域名、相同资源 URL 的文件应命中浏览器 HTTP 缓存或已导入缓存，避免重传资源包。
+浏览器清理/驱逐缓存、改用新域名或资源内容更新后仍需要重新获取相应文件。
