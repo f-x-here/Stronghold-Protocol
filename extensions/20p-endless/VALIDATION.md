@@ -59,3 +59,5 @@ setup、smoke、guards、lint、imports、typecheck 均通过；test 步骤没�
 - 回归日志：`.cache/20p-port/room-browser-result.json`、`room-skin-tests.log`、`room-package-tests.log`、`room-fix-tests.log`。
 
 成品回读发现 Windows Info-ZIP 在长路径下静默漏文件：压缩命令返回 0，但部分模型不在 ZIP 中。已在 Windows 优先采用 bsdtar，并在每次压缩后按 ZIP 中央目录逐一核对全部文件；新增超过 260 字符的模型路径回归。未通过的批次不交付。
+
+补充检查：`update-package` 的 ZIP 读取、UTF-8/ZIP64 与压缩器错误分支定向验证；其历史集成用例仍引用旧的无时间戳包名，整文件执行会在找不到旧路径时失败，不作为本次回归通过依据。

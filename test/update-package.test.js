@@ -378,7 +378,7 @@ test('zipFolder\'s error names every attempt and keeps the install hint only whe
     put(dir, `${FOLDER}/package.json`, '{"version":"0.2.0"}');
     process.env.PATH = path.join(dir, 'no-such-bin');
     assert.throws(() => zipFolder(dir, path.join(dir, 'out.zip')),
-      /^Error: zipping failed: zip: ENOENT; tar: ENOENT — install `zip` \(or a bsdtar `tar`\)$/);
+      /^Error: zipping failed: (?:zip: ENOENT; tar: ENOENT|tar: ENOENT; zip: ENOENT) — install `zip` \(or a bsdtar `tar`\)$/);
   } finally {
     process.env.PATH = PATH;
     fs.rmSync(dir, { recursive: true, force: true });
